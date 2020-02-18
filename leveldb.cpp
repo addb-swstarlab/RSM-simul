@@ -366,7 +366,6 @@ void LevelDB::set_state(bool input) {
   }
 }
 
-
 void LevelDB::check_compaction(std::size_t level) {
   if (level == 0) {
     // Compact if we have too many level-0 SSTables.
@@ -619,7 +618,7 @@ void LevelDB::check_compaction(std::size_t level) {
         if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy && level != 0) {
             
-            double Reward = -1;
+            double Reward = -1 * (stats_[1 + level + 1].write_bytes()/stats_[1 + level + 1].read_bytes());
             set_state(false);
       
             torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
