@@ -1,0 +1,5 @@
+*.o
+*.d
+main
+libtorch/*
+nbproject/*
