@@ -5,6 +5,14 @@
 #include <iterator>
 #include <string>
 
+#include <gsl/gsl_sf_erf.h>
+#include <gsl/gsl_statistics.h>
+#include <gsl/gsl_sort.h>
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_cdf.h>
+
+#include <policy_rl/DDPGTrainer.h>
+
 // #define REMEMBER_NEXT_FIRST_KEY
 
 LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
@@ -32,6 +40,9 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
   level_sweeps_.push_back(0);
 
   next_version_ = 0;
+  compaction_id_ = 0;
+  RSMtrainer_ = new DDPGTrainer(4,12,64);
+  
 }
 
 LevelDB::~LevelDB() {
@@ -283,6 +294,79 @@ void LevelDB::merge_sstables(const levels_t& sstable_runs, std::size_t level) {
   push_flush(state);
 }
 
+double nrd0(double x[], const int N) {
+  gsl_sort(x, 1, N);
+  double hi = gsl_stats_sd(x, 1, N);
+  double iqr = gsl_stats_quantile_from_sorted_data (x,1, N,0.75) - gsl_stats_quantile_from_sorted_data (x,1, N,0.25);
+  double lo = GSL_MIN(hi, iqr/1.34);
+  double bw = 0.9 * lo * pow(N,-0.2);
+  return(bw);
+}
+
+double GaussKernel(double x) { 
+  return exp(-(gsl_pow_2(x)/2))/(M_SQRT2*sqrt(M_PI)); 
+}
+
+double GaussCdf(double x) { 
+  double cdf = (1 + gsl_sf_erf(x/M_SQRT2))/2; 
+  return cdf;
+}
+
+double KernelDensity(double *samples, double obs, size_t n) {
+  size_t i;
+  double h = GSL_MAX(nrd0(samples, n), 1e-6);
+  double prob = 0;
+  for(i = 0; i < n; i++)
+  {
+    prob += GaussKernel((obs - samples[i])/h)/(n*h);
+  }
+  return prob;
+}
+
+double KernelCdf(double *samples, double obs, size_t n) {
+  size_t i;
+  double h = GSL_MAX(nrd0(samples, n), 1e-6);
+  //std::cout << " h = " << h << std::endl;
+  double prob = 0;
+  for(i = 0; i < n; i++)
+  {
+//    prob += GaussCdf((obs - samples[i])/h)/(n*h);
+      prob += GaussCdf((obs - samples[i]))/(n);
+  }
+  return prob;
+}
+
+void LevelDB::set_state(bool input) {
+  if(input)  RSMtrainer_->PrevState.clear();    
+  else  RSMtrainer_->PostState.clear();  
+    
+  for(int i = 0; i < channel_size; i++) {
+    for(int j = 0; j < cfd->NumberLevels() - 1; j++) {
+      double sum_prob = 0.0;
+      for(uint k = 1; k <= 256; k++) {
+        double prob;
+        std::vector<double> data_vec = indice.at(i).at(j);
+        //for(uint l = 0; l < data_vec.size(); l++) std::cout << "data_vect = " << data_vec.at(l) << std::endl;
+        if (data_vec.size() == 0) {
+          prob = 0;
+          sum_prob += prob;
+        } else if (k == 1) {
+          prob = KernelCdf(data_vec.data(), 256*k, data_vec.size());
+          sum_prob += prob;
+        } else {
+          prob = KernelCdf(data_vec.data(), 256*k, data_vec.size())
+                  - KernelCdf(data_vec.data(), 256*(k-1), data_vec.size());
+          sum_prob += prob;
+        }
+        if(input)  RSMtrainer_->PrevState.push_back(prob);
+        else  RSMtrainer_->PostState.push_back(prob); 
+      }
+      //std::cout << "channel : " << i << " level : " << j << " prob : " << (int)sum_prob <<std::endl;
+    }
+  }
+}
+
+
 void LevelDB::check_compaction(std::size_t level) {
   if (level == 0) {
     // Compact if we have too many level-0 SSTables.
@@ -464,10 +548,109 @@ void LevelDB::check_compaction(std::size_t level) {
                    LevelDBCompactionMode::kWholeLevel) {
           level_sweeps_[level]++;
           sequence(levels_[level].size(), sstable_indices.back());
-        } else
+        } else if (params_.compaction_mode ==
+                   LevelDBCompactionMode::kRSMPolicy) {
+            
+          if( level == 0 ) { /* we do not consider L0 -> L1 compaction */
+            auto& level_tables = levels_[level];
+            std::size_t count = level_tables.size();
+
+            if (level < levels_.size() - 1) {
+              auto& level_tables_next = levels_[level + 1];
+              std::size_t selected = count;
+              std::size_t min_overlap = 0;
+              std::size_t sstable_idx_start = 0;
+              std::size_t sstable_idx_end = 0;
+              for (std::size_t i = 0; i < count; i++) {
+                auto& sstable = *level_tables[i];
+                if (sstable_idx_end > 0) sstable_idx_start = sstable_idx_end - 1;
+                while (sstable_idx_start < level_tables_next.size() &&
+                       level_tables_next[sstable_idx_start]->back().key <
+                           sstable.front().key)
+                  sstable_idx_start++;
+                sstable_idx_end = sstable_idx_start;
+                while (sstable_idx_end < level_tables_next.size() &&
+                       level_tables_next[sstable_idx_end]->front().key <
+                           sstable.back().key)
+                  sstable_idx_end++;
+
+                std::size_t overlap = sstable_idx_end - sstable_idx_start;
+                if (selected == count || min_overlap > overlap) {
+                  min_overlap = overlap;
+                  selected = i;
+                }
+              }
+              assert(selected != count);
+              sstable_indices.back().push_back(selected);  
+              
+            } else {
+              /* there are no sst files in the next level*/
+            }
+          } else {
+            set_state(true); // input state  
+            std::vector<SortBase> temp(level_files.size());
+            for (size_t i = 0; i < level_files.size(); i++) {
+              temp[i].index = i;
+              temp[i].file = level_files[i];
+              double val = 0.0;
+              for(unsigned int j = 0; j < 4; j++) {
+                double comp = act.at((start_level_-1)*4 + j) * 65536;
+                std::string* small_f1 = new std::string(temp[i].file->smallest.user_key().ToString(1).substr(4*j,4));
+                std::string* large_f1 = new std::string(temp[i].file->largest.user_key().ToString(1).substr(4*j,4));
+        
+                double s1 = HexToDouble(*small_f1);
+                double l1 = HexToDouble(*large_f1);
+                    
+                val += pow(s1 - comp, 2) + pow(l1 - comp, 2); 
+
+                delete(small_f1);
+                delete(large_f1);   
+              }     
+              temp[i].base = val;
+            }
+            RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState);     
+          }
+        }             
+        else
           assert(false);
 
         compact(level, sstable_indices);
+        
+        if (params_.compaction_mode ==
+                   LevelDBCompactionMode::kRSMPolicy && level != 0) {
+            
+            double Reward = -1;
+            set_state(false);
+      
+            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
+            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
+      
+            std::vector<double> tempAction;
+            if( RSMtrainer_->Action.size() == 0 ) {
+              for(int i = 0; i < 12; i++) tempAction.push_back(0); // we does not consider level = 0;
+            } else {
+              tempAction = RSMtrainer_->Action;
+            }
+            
+            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble));
+            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble));
+            
+            RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor);
+            
+            if (RSMtrainer_->buffer.size_buffer() >= 32) {
+              RSMtrainer_->learn();
+            }
+
+            if (compaction_id_ % 5 == 0) {
+              std::cout<<"[DDPG policy REWARD] : " << Reward << std::endl;
+            }
+    
+            if(compaction_id_ % 1000 == 0) {
+              RSMtrainer_->saveCheckPoints(); 
+            }
+        
+        }
+        
       }
     }
   }
@@ -662,7 +845,7 @@ void LevelDB::compact(
     std::size_t level,
     const std::vector<std::vector<std::size_t>>& sstable_indices) {
   // printf("compact level %zu\n", level);
-
+  compaction_id_++;
   // Ensure we have all necessary data structures for the next level.
   if (levels_.size() <= level + 1) {
     levels_.push_back(sstables_t());
@@ -734,7 +917,8 @@ void LevelDB::compact(
       params_.compaction_mode == LevelDBCompactionMode::kLinearNextFirst ||
       params_.compaction_mode == LevelDBCompactionMode::kMostNarrow ||
       params_.compaction_mode == LevelDBCompactionMode::kLeastOverlap ||
-      params_.compaction_mode == LevelDBCompactionMode::kLargestRatio) {
+      params_.compaction_mode == LevelDBCompactionMode::kLargestRatio ||
+      params_.compaction_mode == LevelDBCompactionMode::kRSMPolicy) {
     min_key = LevelDBKeyMax;
     max_key = LevelDBKeyMin;
     for (auto i : sstable_indices_current) {

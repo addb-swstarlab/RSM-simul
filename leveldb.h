@@ -3,6 +3,7 @@
 #include "common.h"
 #include "stat.h"
 #include <cstdio>
+#include <policy_rl/Trainer.h>
 
 // #define LEVELDB_TRACK_VERSION
 
@@ -41,6 +42,8 @@ enum class LevelDBCompactionMode {
 
   // RocksDB - Universal Compaction
   kRocksDBUniversal = 10,
+  // RSM-tree Compaction
+  kRSMPolicy = 11,
 };
 
 struct LevelDBParams {
@@ -159,9 +162,11 @@ class LevelDB {
   // position take precedence.
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
 
+  void set_state(bool input);
+  
   // Check if we need new compaction.
   void check_compaction(std::size_t level);
-
+  
   // Pushes items to a level, creating SSTables.
   struct push_state {
     std::size_t level;
@@ -217,4 +222,6 @@ class LevelDB {
   std::vector<double> level_overlapping_sstables_false_;
   std::vector<uint64_t> level_sweeps_;
   uint64_t next_version_;
+  uint64_t compaction_id_;
+  Trainer* RSMtrainer_;
 };

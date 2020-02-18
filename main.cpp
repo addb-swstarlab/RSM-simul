@@ -331,7 +331,7 @@ int main(int argc, const char* argv[]) {
         "NUM-REQUESTS ZIPF-THETA COMPACTION-MODE WB-SIZE ENABLE-FSYNC "
         "USE-CUSTOM-SIZES [DUMP-POINTS]\n",
         argv[0]);
-    printf("STORE-TYPE: leveldb-sim, leveldb-impl, rocksdb-impl\n");
+    printf("STORE-TYPE: leveldb-sim\n");
     printf("NUM-UNIQUE-KEYS: 1000000, ...\n");
     printf("ACTIVE-KEY-MODE: 0, 1, 2\n");
     printf("DEPENDENCY-MODE: 0, 1, 2, 3\n");
