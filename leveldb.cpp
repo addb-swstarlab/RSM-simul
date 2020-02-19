@@ -11,7 +11,7 @@
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_cdf.h>
 
-#include <policy_rl/DDPGTrainer.h>
+#include "policy_rl/DDPGTrainer.h"
 
 // #define REMEMBER_NEXT_FIRST_KEY
 
@@ -41,8 +41,7 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(4,12,64);
-  
+  RSMtrainer_ = new DDPGTrainer(4,12,64);  
 }
 
 LevelDB::~LevelDB() {
@@ -339,31 +338,69 @@ double KernelCdf(double *samples, double obs, size_t n) {
 void LevelDB::set_state(bool input) {
   if(input)  RSMtrainer_->PrevState.clear();    
   else  RSMtrainer_->PostState.clear();  
-    
-  for(int i = 0; i < channel_size; i++) {
-    for(int j = 0; j < cfd->NumberLevels() - 1; j++) {
-      double sum_prob = 0.0;
-      for(uint k = 1; k <= 256; k++) {
+  
+  std::vector<std::vector<std::vector<double>>> indice;
+  
+  for(int i = 0; i < 4; i++) {
+    std::vector<std::vector<double>> level_vector;
+    for(int j = 0; j < 4; j++) {
+      level_vector.push_back(std::vector<double>());
+    }
+    indice.push_back(level_vector);
+  }
+  
+  for(unsigned int i = 1; i < 4; i++) {
+    for(unsigned int j = 0; j < levels_[i].size(); j++) {
+      int count = 0;
+      for(auto& item : *levels_[i][j]) {
+        if(count % 100 == 0) {
+          for(unsigned int k = 0; k < 4; k++) {
+            double channel = (item.key / (int)pow(65536, 3 - k)) % 65536;  
+            indice.at(k).at(i-1).push_back(channel);
+          }
+        }
+        count++;
+      }
+    }
+  }
+      
+  for(unsigned int i = 0; i < 4; i++) {
+    for(unsigned int j = 0; j < 4; j++) {
+      for(unsigned int k = 1; k <= 256; k++) {
         double prob;
         std::vector<double> data_vec = indice.at(i).at(j);
-        //for(uint l = 0; l < data_vec.size(); l++) std::cout << "data_vect = " << data_vec.at(l) << std::endl;
+
         if (data_vec.size() == 0) {
           prob = 0;
-          sum_prob += prob;
         } else if (k == 1) {
           prob = KernelCdf(data_vec.data(), 256*k, data_vec.size());
-          sum_prob += prob;
         } else {
           prob = KernelCdf(data_vec.data(), 256*k, data_vec.size())
                   - KernelCdf(data_vec.data(), 256*(k-1), data_vec.size());
-          sum_prob += prob;
         }
         if(input)  RSMtrainer_->PrevState.push_back(prob);
         else  RSMtrainer_->PostState.push_back(prob); 
       }
-      //std::cout << "channel : " << i << " level : " << j << " prob : " << (int)sum_prob <<std::endl;
     }
   }
+}
+
+std::size_t LevelDB::select_action(std::size_t level) {
+  auto& level_tables = levels_[level];
+  std::size_t count = level_tables.size();
+  std::size_t selected = 0;
+  double min = std::numeric_limits<double>::max();
+  for (std::size_t i = 0; i < count; i++) {
+    auto& sstable = *level_tables[i];
+    double val = 0.0;
+    for(unsigned int j = 0; j < 4; j++) {
+      double comp = RSMtrainer_->Action.at((level - 1) * 4 + j) * 65536;   
+      double min_range = (sstable.front().key / (int)pow(65536, 3 - j)) % 65536;  
+      double max_range = (sstable.back().key / (int)pow(65536, 3 - j)) % 65536; 
+      val += pow(min_range - comp, 2) + pow(max_range - comp, 2);      
+    }      
+  }  
+  return selected;
 }
 
 void LevelDB::check_compaction(std::size_t level) {
@@ -587,27 +624,9 @@ void LevelDB::check_compaction(std::size_t level) {
             }
           } else {
             set_state(true); // input state  
-            std::vector<SortBase> temp(level_files.size());
-            for (size_t i = 0; i < level_files.size(); i++) {
-              temp[i].index = i;
-              temp[i].file = level_files[i];
-              double val = 0.0;
-              for(unsigned int j = 0; j < 4; j++) {
-                double comp = act.at((start_level_-1)*4 + j) * 65536;
-                std::string* small_f1 = new std::string(temp[i].file->smallest.user_key().ToString(1).substr(4*j,4));
-                std::string* large_f1 = new std::string(temp[i].file->largest.user_key().ToString(1).substr(4*j,4));
-        
-                double s1 = HexToDouble(*small_f1);
-                double l1 = HexToDouble(*large_f1);
-                    
-                val += pow(s1 - comp, 2) + pow(l1 - comp, 2); 
-
-                delete(small_f1);
-                delete(large_f1);   
-              }     
-              temp[i].base = val;
-            }
-            RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState);     
+            RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState);  
+            size_t selected = select_action(level);
+            sstable_indices.back().push_back(selected);           
           }
         }             
         else

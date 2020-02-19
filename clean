@@ -1,0 +1,7 @@
+#!/bin/bash
+rm CMakeCache.txt
+rm Makefile
+rm -rf CMakeFiles/
+rm cmake_install.cmake
+rm libleveldb.a
+rm main

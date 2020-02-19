@@ -3,10 +3,18 @@ cmake_minimum_required(VERSION 3.5.1)
 project(rsmproject VERSION 1.0.0)
 
 set(PROJECT_SOURCE_DIR /home/wonki/rsm-simul/)
+set(SRCS 
+    leveldb.cpp
+    util.cpp
+    policy_rl/DDPGTrainer.cc
+    policy_rl/DQNTrainer.cc
+    policy_rl/ExperienceReplay.cc)
 
-add_library(util util.h util.cpp)
-add_library(leveldb leveldb.h leveldb.cpp)
+#add_library(util util.h util.cpp)
+#add_library(leveldb leveldb.h leveldb.cpp)
+add_library(leveldb ${SRCS})
 
+include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/policy_rl)
 
 set(Torch_DIR ${PROJECT_SOURCE_DIR}/libtorch/share/cmake/Torch)
@@ -16,5 +24,5 @@ find_package(GSL REQUIRED)
 include_directories(/usr/local/include/gsl)
 
 add_executable(main main.cpp)
-target_link_libraries(main PRIVATE util leveldb)
+target_link_libraries(main leveldb ${TORCH_LIBRARIES} ${GSL_LIBRARIES})
 

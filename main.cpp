@@ -47,7 +47,7 @@ uint64_t get_usec() {
 }
 
 template <class StoreType>
-void test(const char* store_type_name, uint32_t num_unique_keys,
+void test(const char* store_type_name, uint64_t num_unique_keys,
           ActiveKeyMode active_key_mode, DependencyMode dependency_mode,
           uint64_t num_requests, double theta,
           LevelDBCompactionMode compaction_mode, uint64_t wb_size,
@@ -85,7 +85,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
   // Generate keys.
   // Uses uint32_t instead of uint64_t to reduce cache pollution.
   // TODO: Use hashing instead of the shuffle key array.
-  std::vector<uint32_t> keys;
+  std::vector<uint64_t> keys;
   // assert(num_unique_keys < (1UL << 32));
   sequence(num_unique_keys, keys);
   // Comment this out to disable hashing.
@@ -135,7 +135,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
     fflush(stdout);
 
     num_processed_requests = 0;
-    uint32_t key = 0;
+    uint64_t key = 0;
     while (num_processed_requests < static_cast<uint64_t>(num_unique_keys)) {
       uint64_t this_request_batch_size = request_batch_size;
       if (num_processed_requests + this_request_batch_size > num_unique_keys)
@@ -181,7 +181,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
   const int dependency_factor = 10;
 
   // Reinitialize request generation.
-  uint32_t num_active_keys;
+  uint64_t num_active_keys;
   switch (active_key_mode) {
     case ActiveKeyMode::kEntire:
       num_active_keys = num_unique_keys;
@@ -216,7 +216,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
       switch (dependency_mode) {
         case DependencyMode::kIndependent: {
           for (uint64_t i = 0; i < this_request_batch_size; i++) {
-            uint32_t key = keys[zipf_next(&zipf_state)];
+            uint64_t key = keys[zipf_next(&zipf_state)];
             // uint32_t key = keys[static_cast<uint64_t>(rand()) %
             // num_unique_keys];
             // uint32_t key = static_cast<uint32_t>(rand() % num_unique_keys);
@@ -243,7 +243,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
               dependency_factor * dependency_factor;
           for (uint64_t i = 0; i < this_request_batch_size;
                i += dependency_factor) {
-            uint32_t key = keys[zipf_next(&zipf_state)];
+            uint64_t key = keys[zipf_next(&zipf_state)];
             key = key / dependency_factor * dependency_factor;
             store.put(key, item_size);
 
@@ -262,7 +262,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
               dependency_factor * dependency_factor;
           for (uint64_t i = 0; i < this_request_batch_size;
                i += dependency_factor) {
-            uint32_t key = keys[zipf_next(&zipf_state)];
+            uint64_t key = keys[zipf_next(&zipf_state)];
             key = key % key_skip;
             store.put(key, item_size);
 
@@ -276,7 +276,7 @@ void test(const char* store_type_name, uint32_t num_unique_keys,
 
         case DependencyMode::kSequential: {
           for (uint64_t i = 0; i < this_request_batch_size; i++) {
-            uint32_t key = static_cast<uint32_t>((num_processed_requests + i) %
+            uint64_t key = static_cast<uint64_t>((num_processed_requests + i) %
                                                  num_active_keys);
             store.put(key, item_size);
           }

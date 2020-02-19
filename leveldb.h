@@ -3,13 +3,13 @@
 #include "common.h"
 #include "stat.h"
 #include <cstdio>
-#include <policy_rl/Trainer.h>
+#include "policy_rl/Trainer.h"
 
 // #define LEVELDB_TRACK_VERSION
 
-typedef uint32_t LevelDBKey;
-static const uint32_t LevelDBKeyMin = 0;
-static const uint32_t LevelDBKeyMax = static_cast<uint32_t>(-1);
+typedef uint64_t LevelDBKey;
+static const uint64_t LevelDBKeyMin = 0;
+static const uint64_t LevelDBKeyMax = static_cast<uint64_t>(-1);
 
 enum class LevelDBCompactionMode {
   // LevelDB's default compaction; pick one SSTable and pick the next linearly.
@@ -163,6 +163,8 @@ class LevelDB {
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
 
   void set_state(bool input);
+  
+  std::size_t select_action(std::size_t level);
   
   // Check if we need new compaction.
   void check_compaction(std::size_t level);
