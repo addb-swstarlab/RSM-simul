@@ -226,4 +226,7 @@ class LevelDB {
   uint64_t next_version_;
   uint64_t compaction_id_;
   Trainer* RSMtrainer_;
+  uint64_t read_bytes_non_output_;
+  uint64_t write_bytes_;
+  
 };

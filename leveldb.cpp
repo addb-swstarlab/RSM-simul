@@ -42,6 +42,8 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
   next_version_ = 0;
   compaction_id_ = 0;
   RSMtrainer_ = new DDPGTrainer(4,12,64);  
+  read_bytes_non_output_ = 0;
+  write_bytes_ = 0;
 }
 
 LevelDB::~LevelDB() {
@@ -112,6 +114,7 @@ void LevelDB::put(LevelDBKey key, uint32_t item_size) {
   LevelDBItem item{key, item_size};
 #endif
   inserts_++;
+  //std::cout << "insert num = " << inserts_ << std::endl;
   append_to_log(item);
 }
 
@@ -635,12 +638,14 @@ void LevelDB::check_compaction(std::size_t level) {
         else
           assert(false);
 
+        read_bytes_non_output_ = 0;
+        write_bytes_ = 0;
         compact(level, sstable_indices);
         
         if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy && level != 0) {
-            
-            double Reward = -1 * (stats_[1 + level + 1].write_bytes()/stats_[1 + level + 1].read_bytes());
+//            std::cout << "read bytes = " << read_bytes_non_output_ << " and write bytes = " << write_bytes_ <<std::endl;
+            double Reward = -1 * ((double)write_bytes_ / (double)read_bytes_non_output_);
             set_state(false);
       
             torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
@@ -663,7 +668,7 @@ void LevelDB::check_compaction(std::size_t level) {
             }
 
             if (compaction_id_ % 5 == 0) {
-              std::cout<<"[DDPG policy REWARD] : " << Reward << std::endl;
+              //std::cout<<"[DDPG policy REWARD] : " << Reward << std::endl;
             }
     
             if(compaction_id_ % 1000 == 0) {
@@ -780,6 +785,7 @@ void LevelDB::push_items(push_state& state, const sstable_t& sstable,
         state.completed_sstables.push_back(state.current_sstable);
         level_bytes_[state.level] += state.current_sstable_size;
         stats_[1 + state.level].write(state.current_sstable_size);
+        write_bytes_ += state.current_sstable_size;
 
         state.current_sstable = nullptr;
 
@@ -821,6 +827,7 @@ void LevelDB::push_flush(push_state& state) {
     state.completed_sstables.push_back(state.current_sstable);
     level_bytes_[state.level] += state.current_sstable_size;
     stats_[1 + state.level].write(state.current_sstable_size);
+    write_bytes_ += state.current_sstable_size;
   }
 
   // Insert new SSTables into the level.
@@ -1014,6 +1021,7 @@ void LevelDB::compact(
       // stats_[1 + level].read(sstable_size);
       stats_[1 + level + 1].read(sstable_size);
       stats_[1 + level].del(sstable_size);
+      read_bytes_non_output_ += sstable_size;
     }
   }
 

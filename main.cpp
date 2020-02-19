@@ -130,47 +130,47 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 
   start_t = get_usec();
 
-  {
-    printf("initial insertion of %u items\n\n", num_unique_keys);
-    fflush(stdout);
-
-    num_processed_requests = 0;
-    uint64_t key = 0;
-    while (num_processed_requests < static_cast<uint64_t>(num_unique_keys)) {
-      uint64_t this_request_batch_size = request_batch_size;
-      if (num_processed_requests + this_request_batch_size > num_unique_keys)
-        this_request_batch_size = num_unique_keys - num_processed_requests;
-
-      for (uint64_t i = 0; i < this_request_batch_size; i++) {
-        // for sequential insert
-        store.put(key, item_size);
-        // for random insert
-        // store.put(keys[key], item_size);
-        key++;
-      }
-      num_processed_requests += this_request_batch_size;
-
-      if (verbose) {
-        printf("key %lu/%u inserted\n", num_processed_requests,
-               num_unique_keys);
-        store.print_status();
-        print_stats(stats,
-                    num_processed_requests * static_cast<uint64_t>(item_size));
-        printf("\n");
-        fflush(stdout);
-      }
-    }
-
-    printf("key %lu/%u inserted\n", num_processed_requests, num_unique_keys);
-    store.print_status();
-    print_stats(stats,
-                num_processed_requests * static_cast<uint64_t>(item_size));
-    printf("\n");
-    fflush(stdout);
-  }
-
-  printf("elapsed time: %.3lf seconds\n\n",
-         (double)(get_usec() - start_t) / 1000000.);
+//  {
+//    printf("initial insertion of %u items\n\n", num_unique_keys);
+//    fflush(stdout);
+//
+//    num_processed_requests = 0;
+//    uint64_t key = 0;
+//    while (num_processed_requests < static_cast<uint64_t>(num_unique_keys)) {
+//      uint64_t this_request_batch_size = request_batch_size;
+//      if (num_processed_requests + this_request_batch_size > num_unique_keys)
+//        this_request_batch_size = num_unique_keys - num_processed_requests;
+//
+//      for (uint64_t i = 0; i < this_request_batch_size; i++) {
+//        // for sequential insert
+//        store.put(key, item_size);
+//        // for random insert
+//        // store.put(keys[key], item_size);
+//        key++;
+//      }
+//      num_processed_requests += this_request_batch_size;
+//
+//      if (verbose) {
+//        printf("key %lu/%u inserted\n", num_processed_requests,
+//               num_unique_keys);
+//        store.print_status();
+//        print_stats(stats,
+//                    num_processed_requests * static_cast<uint64_t>(item_size));
+//        printf("\n");
+//        fflush(stdout);
+//      }
+//    }
+//
+//    printf("key %lu/%u inserted\n", num_processed_requests, num_unique_keys);
+//    store.print_status();
+//    print_stats(stats,
+//                num_processed_requests * static_cast<uint64_t>(item_size));
+//    printf("\n");
+//    fflush(stdout);
+//  }
+//
+//  printf("elapsed time: %.3lf seconds\n\n",
+//         (double)(get_usec() - start_t) / 1000000.);
 
   for (auto& stat : stats) stat.reset();
 
