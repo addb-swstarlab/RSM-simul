@@ -126,14 +126,14 @@ void DDPGTrainer::learn() {
   auto Q_expected = critic_local->forward(states_tensor, actions_tensor); 
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
-  std::cout << "CRITIC_LOSS = " << critic_loss << std::endl;
+  //std::cout << "CRITIC_LOSS = " << critic_loss << std::endl;
   critic_optimizer.zero_grad();
   critic_loss.backward();
   critic_optimizer.step();
 
   auto actions_pred = actor_local->forward(states_tensor);
   auto actor_loss = -critic_local->forward(states_tensor, actions_pred).mean();
-  std::cout << "ACTOR_LOSS = " << actor_loss << std::endl;
+  //std::cout << "ACTOR_LOSS = " << actor_loss << std::endl;
 
   actor_optimizer.zero_grad();
   actor_loss.backward();

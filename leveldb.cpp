@@ -350,12 +350,14 @@ void LevelDB::set_state(bool input) {
   }
   
   for(unsigned int i = 1; i < 4; i++) {
+    if(i > levels_.size() - 1) break;
     for(unsigned int j = 0; j < levels_[i].size(); j++) {
       int count = 0;
       for(auto& item : *levels_[i][j]) {
         if(count % 100 == 0) {
           for(unsigned int k = 0; k < 4; k++) {
             double channel = (item.key / (int)pow(65536, 3 - k)) % 65536;  
+            //std::cout << "channel = " << k << " level = " << i - 1 << " value = " << channel <<std::endl;
             indice.at(k).at(i-1).push_back(channel);
           }
         }
@@ -398,7 +400,8 @@ std::size_t LevelDB::select_action(std::size_t level) {
       double min_range = (sstable.front().key / (int)pow(65536, 3 - j)) % 65536;  
       double max_range = (sstable.back().key / (int)pow(65536, 3 - j)) % 65536; 
       val += pow(min_range - comp, 2) + pow(max_range - comp, 2);      
-    }      
+    }
+    if(val < min) selected = i;
   }  
   return selected;
 }
