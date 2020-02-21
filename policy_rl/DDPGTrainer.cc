@@ -57,21 +57,32 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
       actor_optimizer(actor_local->parameters(), lr_actor),
       critic_local(std::make_shared<Critic>(channelSize, actionSize)),
       critic_target(std::make_shared<Critic>(channelSize, actionSize)),
-      critic_optimizer(critic_local->parameters(), lr_critic) {
+      critic_optimizer(critic_local->parameters(), lr_critic),
+      device(torch::kCPU) {
  
-    actor_local->to(torch::Device(torch::kCPU));
-    actor_target->to(torch::Device(torch::kCPU));
+    torch::DeviceType device_type;
+    if (torch::cuda::is_available()) {
+        device_type = torch::kCUDA;
+        std::cout << "Agent - Cuda available" << std::endl;
+    } else {
+        device_type = torch::kCPU;
+        std::cout << "Agent - CPU used" << std::endl;
+    }
+    device = torch::Device(device_type);
+    
+    actor_local->to(device);
+    actor_target->to(device);
     
     actor_local->to(torch::kDouble);
     actor_target->to(torch::kDouble);
 
-    critic_local->to(torch::Device(torch::kCPU));
-    critic_target->to(torch::Device(torch::kCPU));
+    critic_local->to(device);
+    critic_target->to(device);
     
     critic_local->to(torch::kDouble);
     critic_target->to(torch::kDouble);
 
-    critic_optimizer.options.weight_decay_ = weight_decay;
+    //critic_optimizer.options.weight_decay_ = weight_decay;
 
     hard_copy(actor_target, actor_local);
     hard_copy(critic_target, critic_local);
@@ -79,7 +90,8 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
 }  
 
 std::vector<double> DDPGTrainer::act(std::vector<double> state) {
-  torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
+  torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble)).to(device);
+  //torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
   actor_local->eval();
 
   torch::NoGradGuard guard;
@@ -119,21 +131,21 @@ void DDPGTrainer::learn() {
   torch::Tensor new_states_tensor = torch::cat(new_states, 0);
   torch::Tensor actions_tensor = torch::cat(actions, 0);
   torch::Tensor rewards_tensor = torch::cat(rewards, 0);
-                    
+                   
   auto actions_next = actor_target->forward(new_states_tensor);
   auto Q_targets_next = critic_target->forward(new_states_tensor, actions_next);
-  auto Q_targets = rewards_tensor.unsqueeze(1) + (gamma * Q_targets_next);
+  auto Q_targets = rewards_tensor + (gamma * Q_targets_next);
   auto Q_expected = critic_local->forward(states_tensor, actions_tensor); 
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
-  std::cout << "CRITIC_LOSS = " << critic_loss << std::endl;
+  std::cout << "CRITIC_LOSS = " << critic_loss.to(torch::kCPU) << std::endl;
   critic_optimizer.zero_grad();
   critic_loss.backward();
   critic_optimizer.step();
 
   auto actions_pred = actor_local->forward(states_tensor);
   auto actor_loss = -critic_local->forward(states_tensor, actions_pred).mean();
-  std::cout << "ACTOR_LOSS = " << actor_loss << std::endl;
+  std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU) << std::endl;
 
   actor_optimizer.zero_grad();
   actor_loss.backward();

@@ -644,12 +644,14 @@ void LevelDB::check_compaction(std::size_t level) {
         
         if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy && level != 0) {
-//            std::cout << "read bytes = " << read_bytes_non_output_ << " and write bytes = " << write_bytes_ <<std::endl;
-            double Reward = -1 * ((double)write_bytes_ / (double)read_bytes_non_output_);
+            std::vector<double> Reward;
+            Reward.push_back((1 / ((double)write_bytes_ / (double)read_bytes_non_output_)));
             set_state(false);
+            
+            torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
       
-            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
-            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble));
+            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
       
             std::vector<double> tempAction;
             if( RSMtrainer_->Action.size() == 0 ) {
@@ -658,17 +660,17 @@ void LevelDB::check_compaction(std::size_t level) {
               tempAction = RSMtrainer_->Action;
             }
             
-            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble));
-            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble));
+            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble)).to(device);
             
-            RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor);
+            RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
             
             if (RSMtrainer_->buffer.size_buffer() >= 32) {
               RSMtrainer_->learn();
             }
 
             if (compaction_id_ % 5 == 0) {
-              //std::cout<<"[DDPG policy REWARD] : " << Reward << std::endl;
+              std::cout<<"[compaction : " << compaction_id_ <<"]  [REWARD : " << Reward << "]" <<std::endl;
             }
     
             if(compaction_id_ % 1000 == 0) {

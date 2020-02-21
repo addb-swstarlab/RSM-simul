@@ -57,6 +57,7 @@ class DDPGTrainer : public Trainer {
     std::shared_ptr<Critic> critic_local;
     std::shared_ptr<Critic> critic_target;
     torch::optim::Adam critic_optimizer;
+    torch::Device device;
        
   DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity);
   virtual std::vector<double> act(std::vector<double> state);
