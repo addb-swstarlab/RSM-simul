@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iterator>
 #include <string>
+#include <sys/time.h>
 
 #include <gsl/gsl_sf_erf.h>
 #include <gsl/gsl_statistics.h>
@@ -41,7 +42,7 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(4,12,64);  
+  RSMtrainer_ = new DDPGTrainer(4,12,10240, params_.model_load);  
   read_bytes_non_output_ = 0;
   write_bytes_ = 0;
 }
@@ -71,6 +72,25 @@ void LevelDB::print_status() const {
         i, levels_[i].size(), level_bytes_[i], level_overflows_[i],
         level_compactions_[i], overlaps, overlaps_false, level_sweeps_[i],
         interval);
+  }
+}
+
+void LevelDB::print_network_status() const {
+  FILE* fp = fopen("/home/wonki/rsm-simul/network_info.txt", "wt");
+  fprintf(fp, " ==============Reward============== \n");
+
+  for(uint i = 0; i < RSMtrainer_->rewards_.size(); i++) {
+    fprintf(fp, "%lf\n", RSMtrainer_->rewards_[i]);
+  }
+  
+  fprintf(fp, " ==============Actor Loss============== \n");
+  for(uint i = 0; i < RSMtrainer_->actor_loss_.size(); i++) {
+    fprintf(fp, "%lf\n", RSMtrainer_->actor_loss_[i]);
+  }
+  
+  fprintf(fp, " ==============Critic Loss============== \n");
+  for(uint i = 0; i < RSMtrainer_->critic_loss_.size(); i++) {
+    fprintf(fp, "%lf\n", RSMtrainer_->critic_loss_[i]);
   }
 }
 
@@ -327,7 +347,7 @@ double KernelDensity(double *samples, double obs, size_t n) {
 
 double KernelCdf(double *samples, double obs, size_t n) {
   size_t i;
-  double h = GSL_MAX(nrd0(samples, n), 1e-6);
+  //double h = GSL_MAX(nrd0(samples, n), 1e-6);
   //std::cout << " h = " << h << std::endl;
   double prob = 0;
   for(i = 0; i < n; i++)
@@ -338,56 +358,112 @@ double KernelCdf(double *samples, double obs, size_t n) {
   return prob;
 }
 
-void LevelDB::set_state(bool input) {
-  if(input)  RSMtrainer_->PrevState.clear();    
-  else  RSMtrainer_->PostState.clear();  
-  
-  std::vector<std::vector<std::vector<double>>> indice;
-  
-  for(int i = 0; i < 4; i++) {
-    std::vector<std::vector<double>> level_vector;
-    for(int j = 0; j < 4; j++) {
-      level_vector.push_back(std::vector<double>());
-    }
-    indice.push_back(level_vector);
+double get_time() {
+  struct timeval tv_now;
+  gettimeofday(&tv_now, NULL);
+
+  return (double)tv_now.tv_sec + (double)tv_now.tv_usec/1000000UL;
+}
+
+void LevelDB::set_initial() {
+  for(unsigned int i = 0; i < 4*4*256; i++) {
+    double prob = 0.0;
+    RSMtrainer_->PrevState.emplace_back(prob);    
   }
+}
+
+//  if(input) {
+//    std::cout << "=======================================================" << std::endl;
+//    double sum = 0.0;
+//    for(unsigned int i = 3 * 4 * 256; i < 4 * 3 * 256 + 256; i++) {
+//      if(i == 4 * 3 * 256 + 255) {
+//        std::cout << RSMtrainer_->PrevState[i] << std::endl;
+//        sum += RSMtrainer_->PrevState[i]; 
+//      } else {
+//        std::cout << RSMtrainer_->PrevState[i] << " -- ";
+//        sum += RSMtrainer_->PrevState[i]; 
+//      }
+//    }
+//    std::cout << "========================sum : " << sum << " ===============================" << std::endl;
+//  }
+
+void LevelDB::set_state(bool input, int input_level) {
+//  uint64_t start_t;
+  // start_t = get_time();
+  //  std::cout << "clear elapsed time: " << 
+//                (double)(get_time() - start_t) / 100 <<std::endl;
+  if(input) {
+    RSMtrainer_->PrevState.clear();
+    RSMtrainer_->PrevState = RSMtrainer_->PostState;
+    if(RSMtrainer_->PrevState.size() == 0) set_initial();  
+  }  else {
+    RSMtrainer_->PostState.clear();
+    RSMtrainer_->PostState = RSMtrainer_->PrevState;
+    
+    
+    
+    std::vector<std::vector<std::vector<double>>> indice;
   
-  for(unsigned int i = 1; i < 4; i++) {
-    if(i > levels_.size() - 1) break;
-    for(unsigned int j = 0; j < levels_[i].size(); j++) {
-      int count = 0;
-      for(auto& item : *levels_[i][j]) {
-        if(count % 100 == 0) {
-          for(unsigned int k = 0; k < 4; k++) {
-            double channel = (item.key / (int)pow(65536, 3 - k)) % 65536;  
-            //std::cout << "channel = " << k << " level = " << i - 1 << " value = " << channel <<std::endl;
-            indice.at(k).at(i-1).push_back(channel);
+    for(int i = 0; i < 4; i++) {
+      std::vector<std::vector<double>> level_vector;
+      for(int j = 0; j < 2; j++) {
+        level_vector.push_back(std::vector<double>());
+      }
+      indice.push_back(level_vector);
+    }
+  
+    for(unsigned int i = input_level; i < input_level + 2; i++) {
+      if(i > levels_.size() - 1) break;
+      int file_per_count = (100 * (int)(pow(10, i - 1))) / levels_[i].size();
+      for(unsigned int j = 0; j < levels_[i].size(); j++) {
+        std::vector<LevelDBItem> sst = *levels_[i][j];
+        int item_per_count = (sst.size() / file_per_count);
+        int traverse = 0;
+        if (item_per_count == 0 ) {
+          traverse = sst.size();
+          item_per_count++;
+        } else {
+          traverse = file_per_count;
+        }
+ 
+        for(unsigned int k = 0; k < traverse; k++) {
+          for(unsigned int l = 0; l < 4; l++) {
+            double channel = (sst[item_per_count*k].key / (int) pow(65536, 3 - l)) % 65536;  
+            if(i == input_level) indice.at(l).at(0).push_back(channel);
+            else indice.at(l).at(1).push_back(channel);
+          }  
+        }      
+      }
+    }
+
+    for(unsigned int i = 0; i < 4; i++) {
+      for(unsigned int j = input_level; j < input_level + 2; j++) {
+        double prob;
+        std::vector<double> data_vec;
+        if(j == input_level) data_vec = indice.at(i).at(0);
+        else data_vec = indice.at(i).at(1);
+        std::vector<double> pdf;
+        
+        if(data_vec.size() != 0) {
+          for(unsigned int k = 0; k < 256; k++) {  
+            prob = KernelCdf(data_vec.data(), 256*(k+1), data_vec.size());
+            pdf.push_back(prob);              
           }
         }
-        count++;
-      }
+        
+        for(unsigned int k = 0; k < 256; k++) {
+          if (data_vec.size() == 0) {
+            RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = 0;
+          } else {         
+            if (k == 0)  RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k];
+            else RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k] - pdf[k-1];
+          } 
+        }          
+      }              
     }
+    
   }
-      
-  for(unsigned int i = 0; i < 4; i++) {
-    for(unsigned int j = 0; j < 4; j++) {
-      for(unsigned int k = 1; k <= 256; k++) {
-        double prob;
-        std::vector<double> data_vec = indice.at(i).at(j);
-
-        if (data_vec.size() == 0) {
-          prob = 0;
-        } else if (k == 1) {
-          prob = KernelCdf(data_vec.data(), 256*k, data_vec.size());
-        } else {
-          prob = KernelCdf(data_vec.data(), 256*k, data_vec.size())
-                  - KernelCdf(data_vec.data(), 256*(k-1), data_vec.size());
-        }
-        if(input)  RSMtrainer_->PrevState.push_back(prob);
-        else  RSMtrainer_->PostState.push_back(prob); 
-      }
-    }
-  }
+    
 }
 
 std::size_t LevelDB::select_action(std::size_t level) {
@@ -395,11 +471,20 @@ std::size_t LevelDB::select_action(std::size_t level) {
   std::size_t count = level_tables.size();
   std::size_t selected = 0;
   double min = std::numeric_limits<double>::max();
+  bool first = false;
   for (std::size_t i = 0; i < count; i++) {
     auto& sstable = *level_tables[i];
     double val = 0.0;
     for(unsigned int j = 0; j < 4; j++) {
-      double comp = RSMtrainer_->Action.at((level - 1) * 4 + j) * 65536;   
+      int comp = (int) (RSMtrainer_->Action.at((level - 1) * 4 + j) * 65536);
+      if(compaction_id_ % 1000 == 0 && !first) {
+        first = true;
+        //std::cout << "level = " << level << " and compaction_id = " << compaction_id_ << std::endl;
+//        std::cout << " action[0] = " << (int) (RSMtrainer_->Action.at((level - 1) * 4 + 0) * 65536) << std::endl;
+//        std::cout << " action[1] = " << (int) (RSMtrainer_->Action.at((level - 1) * 4 + 1) * 65536) << std::endl;
+//        std::cout << " action[2] = " << (int) (RSMtrainer_->Action.at((level - 1) * 4 + 2) * 65536) << std::endl;
+//        std::cout << " action[3] = " << (int) (RSMtrainer_->Action.at((level - 1) * 4 + 3) * 65536) << std::endl;
+      }
       double min_range = (sstable.front().key / (int)pow(65536, 3 - j)) % 65536;  
       double max_range = (sstable.back().key / (int)pow(65536, 3 - j)) % 65536; 
       val += pow(min_range - comp, 2) + pow(max_range - comp, 2);      
@@ -629,10 +714,11 @@ void LevelDB::check_compaction(std::size_t level) {
               /* there are no sst files in the next level*/
             }
           } else {
-            set_state(true); // input state  
-            RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState);  
+            set_state(true, level); // input state  
+            if(!params_.model_load)  RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, true);
+            else RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, false);
             size_t selected = select_action(level);
-            sstable_indices.back().push_back(selected);           
+            sstable_indices.back().push_back(selected); 
           }
         }             
         else
@@ -640,43 +726,50 @@ void LevelDB::check_compaction(std::size_t level) {
 
         read_bytes_non_output_ = 0;
         write_bytes_ = 0;
+
         compact(level, sstable_indices);
+        compaction_id_++;
+
+        if(compaction_id_ % 1000 == 0)  std::cout << "level = " << level << " and compaction_id = " << compaction_id_ << std::endl;
         
         if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy && level != 0) {
+
             std::vector<double> Reward;
             Reward.push_back((1 / ((double)write_bytes_ / (double)read_bytes_non_output_)));
-            set_state(false);
-            
-            torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
+            set_state(false, level);
+
+            if (!params_.model_load) {
+              torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
       
-            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
-            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
+              torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
+              torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
       
-            std::vector<double> tempAction;
-            if( RSMtrainer_->Action.size() == 0 ) {
-              for(int i = 0; i < 12; i++) tempAction.push_back(0); // we does not consider level = 0;
-            } else {
-              tempAction = RSMtrainer_->Action;
-            }
+              std::vector<double> tempAction;
+              if( RSMtrainer_->Action.size() == 0 ) {
+                for(int i = 0; i < 12; i++) tempAction.push_back(0); // we does not consider level = 0;
+              } else {
+                tempAction = RSMtrainer_->Action;
+              }
             
-            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble)).to(device);
-            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble)).to(device);
+              torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble)).to(device);
+              torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble)).to(device);
+
+              RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
+
+              if(RSMtrainer_->buffer.size_buffer() >= 1024 ) {
+                RSMtrainer_->learn();
+              }
             
-            RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
-            
-            if (RSMtrainer_->buffer.size_buffer() >= 32) {
-              RSMtrainer_->learn();
+              if(compaction_id_ % 10000 == 0) {
+                RSMtrainer_->saveCheckPoints(); 
+              }
             }
 
-            if (compaction_id_ % 5 == 0) {
-              std::cout<<"[compaction : " << compaction_id_ <<"]  [REWARD : " << Reward << "]" <<std::endl;
+            if (compaction_id_ % 100 == 0) {
+              RSMtrainer_->rewards_.push_back(Reward.at(0));  
             }
-    
-            if(compaction_id_ % 1000 == 0) {
-              RSMtrainer_->saveCheckPoints(); 
-            }
-        
+            
         }
         
       }
@@ -875,7 +968,7 @@ void LevelDB::compact(
     std::size_t level,
     const std::vector<std::vector<std::size_t>>& sstable_indices) {
   // printf("compact level %zu\n", level);
-  compaction_id_++;
+
   // Ensure we have all necessary data structures for the next level.
   if (levels_.size() <= level + 1) {
     levels_.push_back(sstables_t());

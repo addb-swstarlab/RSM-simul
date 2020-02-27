@@ -50,7 +50,7 @@ torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
   return fc2->forward(x);
 }
 
-DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity)
+DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity, bool model_load)
     : Trainer(capacity),
       actor_local(std::make_shared<Actor>(channelSize, actionSize)),
       actor_target(std::make_shared<Actor>(channelSize, actionSize)),
@@ -83,13 +83,17 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
     critic_target->to(torch::kDouble);
 
     //critic_optimizer.options.weight_decay_ = weight_decay;
-
+    
     hard_copy(actor_target, actor_local);
     hard_copy(critic_target, critic_local);
-    noise = new OUNoise(static_cast<size_t>(actionSize));   
+    noise = new OUNoise(static_cast<size_t>(actionSize));
+    
+    if(model_load)  loadCheckPoints();   
+    PrevState.reserve(4096);
+    PostState.reserve(4096);
 }  
 
-std::vector<double> DDPGTrainer::act(std::vector<double> state) {
+std::vector<double> DDPGTrainer::act(std::vector<double> state, bool noise) {
   torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble)).to(device);
   //torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
   actor_local->eval();
@@ -100,8 +104,7 @@ std::vector<double> DDPGTrainer::act(std::vector<double> state) {
   actor_local->train();
 
   std::vector<double> v(action.data_ptr<double>(), action.data_ptr<double>() + action.numel());
-
-  noise->sample(v);
+  if(noise)  noise->sample(v);
   
   for (size_t i = 0; i < v.size(); i++) {
     v[i] = std::fmin(std::fmax(v[i],0.f), 1.f); // 0 =< v[i] =< 1
@@ -138,14 +141,16 @@ void DDPGTrainer::learn() {
   auto Q_expected = critic_local->forward(states_tensor, actions_tensor); 
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
-  std::cout << "CRITIC_LOSS = " << critic_loss.to(torch::kCPU) << std::endl;
+  critic_loss_.push_back(critic_loss.to(torch::kCPU).item<double>());
+  //std::cout << "CRITIC_LOSS = " << critic_loss.to(torch::kCPU).item<double>() << std::endl;
   critic_optimizer.zero_grad();
   critic_loss.backward();
   critic_optimizer.step();
 
   auto actions_pred = actor_local->forward(states_tensor);
   auto actor_loss = -critic_local->forward(states_tensor, actions_pred).mean();
-  std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU) << std::endl;
+  actor_loss_.push_back(actor_loss.to(torch::kCPU).item<double>());
+  //std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU).item<double>() << std::endl;
 
   actor_optimizer.zero_grad();
   actor_loss.backward();

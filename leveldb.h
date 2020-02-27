@@ -77,6 +77,7 @@ struct LevelDBParams {
 
   // Enable fsync for implementation-based tests.
   bool enable_fsync;
+  bool model_load;
 
   LevelDBParams() {
     log_size_threshold =
@@ -99,6 +100,7 @@ struct LevelDBParams {
     hint_theta = 0.;
 
     enable_fsync = false;
+    model_load = false;
   }
 };
 
@@ -122,6 +124,8 @@ class LevelDB {
 
   // Prints the summary of the store.
   void print_status() const;
+  
+  void print_network_status() const;
 
   // Writes the current items in the store to the file.
   void dump_state(FILE* fp) const;
@@ -162,7 +166,8 @@ class LevelDB {
   // position take precedence.
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
 
-  void set_state(bool input);
+  void set_initial();
+  void set_state(bool input, int input_level);
   
   std::size_t select_action(std::size_t level);
   

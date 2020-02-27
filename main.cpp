@@ -51,7 +51,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
           ActiveKeyMode active_key_mode, DependencyMode dependency_mode,
           uint64_t num_requests, double theta,
           LevelDBCompactionMode compaction_mode, uint64_t wb_size,
-          bool enable_fsync, bool use_custom_sizes,
+          bool enable_fsync, bool use_custom_sizes, bool model_load,
           const std::vector<uint64_t>& dump_points) {
   // The number of unique keys.
   // uint32_t num_unique_keys = 2 * 1000 * 1000;
@@ -76,6 +76,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   printf("wb_size=%lu\n", wb_size);
   printf("enable_fsync=%s\n", enable_fsync ? "1" : "0");
   printf("use_custom_sizes=%s\n", use_custom_sizes ? "1" : "0");
+  printf("model_load=%s\n", model_load ? "1" : "0");
   printf("\n");
   fflush(stdout);
 
@@ -114,6 +115,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   params.use_custom_sizes = use_custom_sizes;
   params.hint_num_unique_keys = num_unique_keys;
   params.hint_theta = theta;
+  params.model_load = model_load;
 
   StoreType store(params, stats);
 
@@ -309,6 +311,8 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 
   printf("elapsed time: %.3lf seconds\n\n",
          (double)(get_usec() - start_t) / 1000000.);
+  
+  store.print_network_status();
 
   if (false) {
     printf("forcing compaction\n");
@@ -325,7 +329,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 }
 
 int main(int argc, const char* argv[]) {
-  if (argc < 11) {
+  if (argc < 12) {
     printf(
         "%s STORE-TYPE NUM-UNIQUE-KEYS ACTIVE-KEY-MODE DEPENDENCY-MODE "
         "NUM-REQUESTS ZIPF-THETA COMPACTION-MODE WB-SIZE ENABLE-FSYNC "
@@ -341,6 +345,7 @@ int main(int argc, const char* argv[]) {
     printf("WB-SIZE: 4194304, ...\n");
     printf("ENABLE-FSYNC: 0, 1\n");
     printf("USE-CUSTOM-SIZES: 0, 1\n");
+    printf("MODEL LOAD: 0, 1\n");
     return 1;
   }
   int store_type;
@@ -361,14 +366,15 @@ int main(int argc, const char* argv[]) {
   uint64_t wb_size = static_cast<uint64_t>(atol(argv[8]));
   bool enable_fsync = atoi(argv[9]) != 0;
   bool use_custom_sizes = atoi(argv[10]) != 0;
+  bool model_load = atoi(argv[11]) != 0;
   std::vector<uint64_t> dump_points;
-  for (int i = 11; i < argc; i++)
+  for (int i = 12; i < argc; i++)
     dump_points.push_back(static_cast<uint64_t>(atol(argv[i])));
 
   if (store_type == 0)
     test<LevelDB>("leveldb-sim", num_unique_keys, active_key_mode,
                   dependency_mode, num_requests, theta, compaction_mode,
-                  wb_size, enable_fsync, use_custom_sizes, dump_points);
+                  wb_size, enable_fsync, use_custom_sizes, model_load, dump_points);
   else
     assert(false);
 
