@@ -400,16 +400,14 @@ void LevelDB::set_state(bool input, int input_level) {
     RSMtrainer_->PostState.clear();
     RSMtrainer_->PostState = RSMtrainer_->PrevState;
     
-    std::vector<std::vector<std::vector<double>>> indice;
-  
-    for(int i = 0; i < channel_size; i++) {
-      std::vector<std::vector<double>> level_vector;
-      for(int j = 0; j < 2; j++) {
-        level_vector.push_back(std::vector<double>(256));
+    for(unsigned int l = 0; l < channel_size; l++) {
+      for(unsigned int i = input_level; i < input_level + 2; i++) {
+        for(unsigned int k = 0; k < 256; k++) {
+          RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + k] = 0;  
+        }
       }
-      indice.push_back(level_vector);
     }
-  
+    
     for(unsigned int i = input_level; i < input_level + 2; i++) {
       if(i > levels_.size() - 1) break;
       int file_per_count = (100 * (int)(pow(10, i - 1))) / levels_[i].size();
@@ -426,50 +424,12 @@ void LevelDB::set_state(bool input, int input_level) {
  
         for(unsigned int k = 0; k < traverse; k++) {
           for(unsigned int l = 0; l < channel_size; l++) {
-            double channel = (int)(sst[item_per_count*k].key / (double) pow(256, channel_size - 1 - l)) % 256;  
-            if(i == input_level) indice[l][0][channel]++;
-            else indice[l][1][channel]++;
+            int channel = (int)(sst[item_per_count*k].key / (double) pow(256, channel_size - 1 - l)) % 256;  
+            RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + channel]++;
           }  
         }      
       }
-    }
-
-//    for(unsigned int i = 0; i < 4; i++) {
-//      for(unsigned int j = input_level; j < input_level + 2; j++) {
-//        double prob;
-//        std::vector<double> data_vec;
-//        if(j == input_level) data_vec = indice.at(i).at(0);
-//        else data_vec = indice.at(i).at(1);
-//        std::vector<double> pdf;
-//        
-//        if(data_vec.size() != 0) {
-//          for(unsigned int k = 0; k < 256; k++) {  
-//            prob = KernelCdf(data_vec.data(), 256*(k+1), data_vec.size());
-//            pdf.push_back(prob);              
-//          }
-//        }
-//        
-//        for(unsigned int k = 0; k < 256; k++) {
-//          if (data_vec.size() == 0) {
-//            RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = 0;
-//          } else {         
-//            if (k == 0)  RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k];
-//            else RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k] - pdf[k-1];
-//          } 
-//        }          
-//      }              
-//    }
-    for(unsigned int i = 0; i < channel_size; i++) {
-      for(unsigned int j = input_level; j < input_level + 2; j++) {
-        double prob;
-        std::vector<double> data_vec;
-        if(j == input_level) data_vec = indice.at(i).at(0);
-        else data_vec = indice.at(i).at(1);
-        for(unsigned int k = 0; k < 256; k++) {
-          RSMtrainer_->PostState[256*level_size*i + 256*(j-1) + k] = data_vec[k];
-        }
-      }          
-    }              
+    }      
   }        
 }
 
