@@ -491,7 +491,10 @@ std::size_t LevelDB::select_action(std::size_t level) {
 //      std::cout << "action[" << j << "] = " << comp << " min_range : " << min_range << " max_range = " << max_range << std::endl;
 //      std::cout << "val = " << val << std::endl;
     }
-    if(val < min) selected = i;
+    if(val < min) {
+      min = val;
+      selected = i;
+    }
   }
   //std::cout << "count = " << count << " selected = " << selected <<std::endl; 
   return selected;
