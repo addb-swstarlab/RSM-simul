@@ -24,9 +24,9 @@ class Actor : public torch::nn::Module {
     torch::Tensor forward(torch::Tensor state);
 
   private:
-//    torch::nn::Conv1d conv1{nullptr}, conv2{nullptr};
     torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
     torch::nn::Linear linear1{nullptr}, output{nullptr};
+    torch::nn::BatchNorm2d bn1{nullptr};
 };
 
 class Critic : public torch::nn::Module {
@@ -39,6 +39,7 @@ class Critic : public torch::nn::Module {
     torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
     torch::nn::Linear linear1{nullptr};
     torch::nn::Linear fc1{nullptr}, fc2{nullptr};
+    torch::nn::BatchNorm2d bn1{nullptr};
 };  
 
 class DDPGTrainer : public Trainer {
