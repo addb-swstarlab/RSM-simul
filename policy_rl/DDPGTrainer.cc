@@ -93,7 +93,7 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
     PostState.reserve(4096);
 }  
 
-std::vector<double> DDPGTrainer::act(std::vector<double> state, bool noise) {
+std::vector<double> DDPGTrainer::act(std::vector<double> state, bool add_noise) {
   torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble)).to(device);
   //torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
   actor_local->eval();
@@ -104,7 +104,7 @@ std::vector<double> DDPGTrainer::act(std::vector<double> state, bool noise) {
   actor_local->train();
 
   std::vector<double> v(action.data_ptr<double>(), action.data_ptr<double>() + action.numel());
-  if(noise)  noise->sample(v);
+  if(add_noise)  noise->sample(v);
   
   for (size_t i = 0; i < v.size(); i++) {
     v[i] = std::fmin(std::fmax(v[i],0.f), 1.f); // 0 =< v[i] =< 1

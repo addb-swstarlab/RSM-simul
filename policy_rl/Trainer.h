@@ -29,7 +29,7 @@ class Trainer {
       
     Trainer(uint64_t capacity) : buffer(capacity){};
     virtual ~Trainer(){}
-    virtual std::vector<double> act(std::vector<double> state, bool noise) {
+    virtual std::vector<double> act(std::vector<double> state, bool add_noise) {
       std::cout << "Trainer act function" << std::endl;
       return std::vector<double>();
     }
