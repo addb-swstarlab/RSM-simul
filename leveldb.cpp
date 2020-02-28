@@ -42,7 +42,7 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(4,4,10240, params_.model_load);  
+  RSMtrainer_ = new DDPGTrainer(8,8,10240, params_.model_load);  
   read_bytes_non_output_ = 0;
   write_bytes_ = 0;
 }
@@ -366,7 +366,7 @@ double get_time() {
 }
 
 void LevelDB::set_initial() {
-  for(unsigned int i = 0; i < 4*4*256; i++) {
+  for(unsigned int i = 0; i < channel_size*level_size*256; i++) {
     double prob = 0.0;
     RSMtrainer_->PrevState.emplace_back(prob);    
   }
@@ -402,10 +402,10 @@ void LevelDB::set_state(bool input, int input_level) {
     
     std::vector<std::vector<std::vector<double>>> indice;
   
-    for(int i = 0; i < 4; i++) {
+    for(int i = 0; i < channel_size; i++) {
       std::vector<std::vector<double>> level_vector;
       for(int j = 0; j < 2; j++) {
-        level_vector.push_back(std::vector<double>());
+        level_vector.push_back(std::vector<double>(256));
       }
       indice.push_back(level_vector);
     }
@@ -425,42 +425,52 @@ void LevelDB::set_state(bool input, int input_level) {
         }
  
         for(unsigned int k = 0; k < traverse; k++) {
-          for(unsigned int l = 0; l < 4; l++) {
-            double channel = (int)(sst[item_per_count*k].key / (double) pow(65536, 4 - l)) % 65536;  
-            if(i == input_level) indice.at(l).at(0).push_back(channel);
-            else indice.at(l).at(1).push_back(channel);
+          for(unsigned int l = 0; l < channel_size; l++) {
+            double channel = (int)(sst[item_per_count*k].key / (double) pow(256, channel_size - 1 - l)) % 256;  
+            if(i == input_level) indice[l][0][channel]++;
+            else indice[l][1][channel]++;
           }  
         }      
       }
     }
 
-    for(unsigned int i = 0; i < 4; i++) {
+//    for(unsigned int i = 0; i < 4; i++) {
+//      for(unsigned int j = input_level; j < input_level + 2; j++) {
+//        double prob;
+//        std::vector<double> data_vec;
+//        if(j == input_level) data_vec = indice.at(i).at(0);
+//        else data_vec = indice.at(i).at(1);
+//        std::vector<double> pdf;
+//        
+//        if(data_vec.size() != 0) {
+//          for(unsigned int k = 0; k < 256; k++) {  
+//            prob = KernelCdf(data_vec.data(), 256*(k+1), data_vec.size());
+//            pdf.push_back(prob);              
+//          }
+//        }
+//        
+//        for(unsigned int k = 0; k < 256; k++) {
+//          if (data_vec.size() == 0) {
+//            RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = 0;
+//          } else {         
+//            if (k == 0)  RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k];
+//            else RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k] - pdf[k-1];
+//          } 
+//        }          
+//      }              
+//    }
+    for(unsigned int i = 0; i < channel_size; i++) {
       for(unsigned int j = input_level; j < input_level + 2; j++) {
         double prob;
         std::vector<double> data_vec;
         if(j == input_level) data_vec = indice.at(i).at(0);
         else data_vec = indice.at(i).at(1);
-        std::vector<double> pdf;
-        
-        if(data_vec.size() != 0) {
-          for(unsigned int k = 0; k < 256; k++) {  
-            prob = KernelCdf(data_vec.data(), 256*(k+1), data_vec.size());
-            pdf.push_back(prob);              
-          }
-        }
-        
         for(unsigned int k = 0; k < 256; k++) {
-          if (data_vec.size() == 0) {
-            RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = 0;
-          } else {         
-            if (k == 0)  RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k];
-            else RSMtrainer_->PostState[256*4*i + 256*(j-1) + k] = pdf[k] - pdf[k-1];
-          } 
-        }          
-      }              
-    }    
-  }
-    
+          RSMtrainer_->PostState[256*level_size*i + 256*(j-1) + k] = data_vec[k];
+        }
+      }          
+    }              
+  }        
 }
 
 std::size_t LevelDB::select_action(std::size_t level) {
@@ -468,16 +478,15 @@ std::size_t LevelDB::select_action(std::size_t level) {
   std::size_t count = level_tables.size();
   std::size_t selected = 0;
   double min = std::numeric_limits<double>::max();
-  bool first = false;
   for (std::size_t i = 0; i < count; i++) {
     auto& sstable = *level_tables[i];
     double val = 0.0;
-    for(unsigned int j = 0; j < 4; j++) {
-      int comp = (int) (RSMtrainer_->Action.at(j) * 65536);
-      double min_range = ((int)((double)sstable.front().key / (double)pow(65536, 4 - j))) % 65536;  
-      double max_range = ((int)((double)sstable.back().key / (double)pow(65536, 4 - j))) % 65536; 
+    for(unsigned int j = 0; j < action_size; j++) {
+      int comp = (int) (RSMtrainer_->Action.at(j) * 256);
+      double min_range = ((int)((double)sstable.front().key / (double)pow(256, channel_size - 1 - j))) % 256;  
+      double max_range = ((int)((double)sstable.back().key / (double)pow(256, channel_size - 1 - j))) % 256; 
       val += sqrt(pow(min_range - comp, 2) + pow(max_range - comp, 2));
-//      std::cout << "pow = " << (double)pow(65536, 4 - j) << " and " << (int)((double)sstable.front().key / (double)pow(65536, 4 - j)) <<std::endl;
+//      std::cout << "pow = " << (double)pow(256, 8 -1 - j) << " and " << (int)((double)sstable.front().key / (double)pow(256, 8 -1 - j)) <<std::endl;
 //      std::cout << "sstable front = " << sstable.front().key << " sstable back = " << sstable.back().key <<std::endl;
 //      std::cout << "action[" << j << "] = " << comp << " min_range : " << min_range << " max_range = " << max_range << std::endl;
 //      std::cout << "val = " << val << std::endl;
@@ -696,12 +705,12 @@ void LevelDB::check_compaction(std::size_t level) {
 
           if (!params_.model_load) {
             torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
-            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
-            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, 4, 4, 256}, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, channel_size, level_size, 256}, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, channel_size, level_size, 256}, torch::dtype(torch::kDouble)).to(device);
       
             std::vector<double> tempAction;
             if( RSMtrainer_->Action.size() == 0 ) {
-              for(int i = 0; i < 4; i++) tempAction.push_back(0); // we does not consider level = 0;
+              for(int i = 0; i < action_size; i++) tempAction.push_back(0); // we does not consider level = 0;
             } else {
               tempAction = RSMtrainer_->Action;
             }

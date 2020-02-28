@@ -94,7 +94,7 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
 }  
 
 std::vector<double> DDPGTrainer::act(std::vector<double> state, bool add_noise) {
-  torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble)).to(device);
+  torch::Tensor torchState = torch::from_blob(state.data(), {1, 8, 4, 256}, torch::dtype(torch::kDouble)).to(device);
   //torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
   actor_local->eval();
 
