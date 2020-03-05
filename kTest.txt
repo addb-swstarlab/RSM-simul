@@ -1,0 +1,284 @@
+store_type=leveldb-sim
+num_unique_keys=10000000
+active_key_mode=0
+dependency_mode=0
+item_size=1000
+num_requests=10000000
+theta=0.000000
+compaction_mode=3
+wb_size=4194304
+enable_fsync=0
+use_custom_sizes=0
+model_load=0
+
+Agent - Cuda available
+main transaction of 10000000 requests
+
+level-1: max size 10485760 bytes
+level-2: max size 104857600 bytes
+level-3: max size 1048576000 bytes
+Reward = 1
+Reward = 0.250418
+Reward = 0.204925
+Reward = 0.338663
+Reward = 0.352615
+Reward = 0.256013
+Reward = 0.211968
+Reward = 0.0338645
+Reward = 0.20179
+Reward = 0.144571
+Reward = 0.06844
+level-4: max size 10485760000 bytes
+Reward = 0.198273
+Reward = 0.221389
+Reward = 1
+Reward = 0.170142
+Reward = 0.161147
+Reward = 0.323348
+Reward = 1
+Reward = 0.126272
+Reward = 0.145564
+Reward = 0.185395
+Reward = 1
+Reward = 1
+Reward = 0.330861
+Reward = 0.209721
+Reward = 0.657573
+Reward = 1
+Reward = 0.137104
+Reward = 0.2075
+Reward = 0.131366
+Reward = 0.0305635
+Reward = 1
+Reward = 0.131998
+Reward = 0.167465
+Reward = 0.184741
+Reward = 1
+Reward = 1
+Reward = 0.128461
+Reward = 0.123747
+Reward = 1
+Reward = 1
+Reward = 0.135966
+Reward = 0.150021
+Reward = 0.119098
+Reward = 0.149487
+Reward = 0.540046
+Reward = 0.290524
+Reward = 0.530215
+Reward = 0.148313
+Reward = 0.358339
+Reward = 0.146418
+Reward = 0.18569
+Reward = 0.275362
+Reward = 0.175805
+Reward = 0.241279
+Reward = 0.250717
+Reward = 0.160321
+Reward = 0.152427
+Reward = 0.281004
+Reward = 0.14721
+Reward = 0.248846
+Reward = 0.184465
+Reward = 0.408374
+Reward = 0.143282
+Reward = 0.200536
+Reward = 0.0869979
+Reward = 0.514097
+Reward = 0.106299
+Reward = 0.200804
+Reward = 0.362866
+Reward = 0.106206
+Reward = 0.286046
+Reward = 0.0586775
+Reward = 0.276212
+Reward = 0.335919
+Reward = 0.185051
+Reward = 0.29359
+Reward = 0.0921388
+Reward = 0.336813
+Reward = 0.0378928
+Reward = 0.200421
+Reward = 0.149285
+Reward = 0.250897
+Reward = 0.110823
+Reward = 1
+Reward = 0.328632
+Reward = 0.151879
+Reward = 0.201016
+Reward = 0.0234316
+Reward = 0.269954
+Reward = 0.176783
+Reward = 0.359137
+Reward = 0.0871961
+Reward = 0.253966
+Reward = 0.146972
+Reward = 0.381065
+Reward = 0.14954
+Reward = 0.209281
+Reward = 0.294398
+Reward = 0.220296
+Reward = 0.233083
+Reward = 0.0533242
+Reward = 0.275631
+Reward = 0.194473
+Reward = 0.0570278
+Reward = 0.200478
+Reward = 0.109402
+Reward = 0.25832
+Reward = 0.205387
+Reward = 0.149125
+Reward = 0.236149
+Reward = 0.148198
+Reward = 0.212505
+Reward = 0.147707
+Reward = 0.251892
+Reward = 0.0377446
+Reward = 0.219283
+Reward = 0.181213
+Reward = 0.357423
+Reward = 0.148303
+Reward = 0.208698
+Reward = 0.147697
+Reward = 0.212397
+Reward = 0.148924
+Reward = 0.282272
+Reward = 0.0499313
+Reward = 0.290967
+Reward = 0.0910509
+Reward = 0.242266
+Reward = 0.147916
+Reward = 0.268468
+Reward = 0.145463
+Reward = 0.265847
+Reward = 0.178165
+Reward = 0.312798
+Reward = 0.146418
+Reward = 0.252925
+Reward = 0.179738
+Reward = 0.152387
+Reward = 0.402959
+Reward = 0.0196844
+Reward = 0.146941
+Reward = 0.264439
+Reward = 0.145232
+Reward = 0.440084
+Reward = 0.204565
+Reward = 0.23459
+Reward = 0.173134
+Reward = 0.304183
+Reward = 0.203889
+Reward = 0.1449
+Reward = 0.203949
+Reward = 0.156914
+Reward = 0.281137
+Reward = 0.145544
+Reward = 0.256786
+Reward = 0.14472
+Reward = 0.201441
+request 10000000/10000000 processed
+log: 3315 items, 3315000 bytes
+level-0:     3 tables,       12581000 bytes,    595 overflows,    595 compactions,  0.62 avg overlaps (0.00 false),  595 sweeps (interval=   16806)
+level-1:     5 tables,       10462000 bytes,    595 overflows,   4782 compactions,  3.55 avg overlaps (0.69 false),    0 sweeps (interval=       0)
+level-2:    56 tables,      104138000 bytes,    589 overflows,   6025 compactions, 10.71 avg overlaps (3.92 false),    0 sweeps (interval=       0)
+level-3:   517 tables,     1047836000 bytes,    523 overflows,   5017 compactions,  8.13 avg overlaps (5.88 false),    0 sweeps (interval=       0)
+level-4:  3500 tables,     5790597000 bytes,      0 overflows,      0 compactions,  0.00 avg overlaps (0.00 false),    0 sweeps (interval=       0)
+<log> stats
+Read: 0 times, 0 bytes
+Write: 10000000 times, 10000000000 bytes
+Delete: 2383 times, 9996685000 bytes
+Current size: 3315000 bytes
+WA_r:  0.00
+WA_w:  1.00
+<level-0> stats
+Read: 0 times, 0 bytes
+Write: 2383 times, 9994531000 bytes
+Delete: 2380 times, 9981950000 bytes
+Current size: 12581000 bytes
+WA_r:  0.00
+WA_w:  1.00
+<level-1> stats
+Read: 5350 times, 16187286000 bytes
+Write: 7757 times, 16170625000 bytes
+Delete: 7752 times, 16160163000 bytes
+Current size: 10462000 bytes
+WA_r:  1.62
+WA_w:  1.62
+<level-2> stats
+Read: 23622 times, 44877849000 bytes
+Write: 24921 times, 44780601000 bytes
+Delete: 24865 times, 44676463000 bytes
+Current size: 104138000 bytes
+WA_r:  4.49
+WA_w:  4.48
+<level-3> stats
+Read: 33914 times, 65504047000 bytes
+Write: 33423 times, 64607941000 bytes
+Delete: 32906 times, 63560105000 bytes
+Current size: 1047836000 bytes
+WA_r:  6.55
+WA_w:  6.46
+<level-4> stats
+Read: 15476 times, 26451935000 bytes
+Write: 13959 times, 24433033000 bytes
+Delete: 10459 times, 18642436000 bytes
+Current size: 5790597000 bytes
+WA_r:  2.65
+WA_w:  2.44
+WA_r sum: 15.30
+WA_w sum: 17.00
+
+request 10000000/10000000 processed
+log: 3315 items, 3315000 bytes
+level-0:     3 tables,       12581000 bytes,    595 overflows,    595 compactions,  0.62 avg overlaps (0.00 false),  595 sweeps (interval=   16806)
+level-1:     5 tables,       10462000 bytes,    595 overflows,   4782 compactions,  3.55 avg overlaps (0.69 false),    0 sweeps (interval=       0)
+level-2:    56 tables,      104138000 bytes,    589 overflows,   6025 compactions, 10.71 avg overlaps (3.92 false),    0 sweeps (interval=       0)
+level-3:   517 tables,     1047836000 bytes,    523 overflows,   5017 compactions,  8.13 avg overlaps (5.88 false),    0 sweeps (interval=       0)
+level-4:  3500 tables,     5790597000 bytes,      0 overflows,      0 compactions,  0.00 avg overlaps (0.00 false),    0 sweeps (interval=       0)
+<log> stats
+Read: 0 times, 0 bytes
+Write: 10000000 times, 10000000000 bytes
+Delete: 2383 times, 9996685000 bytes
+Current size: 3315000 bytes
+WA_r:  0.00
+WA_w:  1.00
+<level-0> stats
+Read: 0 times, 0 bytes
+Write: 2383 times, 9994531000 bytes
+Delete: 2380 times, 9981950000 bytes
+Current size: 12581000 bytes
+WA_r:  0.00
+WA_w:  1.00
+<level-1> stats
+Read: 5350 times, 16187286000 bytes
+Write: 7757 times, 16170625000 bytes
+Delete: 7752 times, 16160163000 bytes
+Current size: 10462000 bytes
+WA_r:  1.62
+WA_w:  1.62
+<level-2> stats
+Read: 23622 times, 44877849000 bytes
+Write: 24921 times, 44780601000 bytes
+Delete: 24865 times, 44676463000 bytes
+Current size: 104138000 bytes
+WA_r:  4.49
+WA_w:  4.48
+<level-3> stats
+Read: 33914 times, 65504047000 bytes
+Write: 33423 times, 64607941000 bytes
+Delete: 32906 times, 63560105000 bytes
+Current size: 1047836000 bytes
+WA_r:  6.55
+WA_w:  6.46
+<level-4> stats
+Read: 15476 times, 26451935000 bytes
+Write: 13959 times, 24433033000 bytes
+Delete: 10459 times, 18642436000 bytes
+Current size: 5790597000 bytes
+WA_r:  2.65
+WA_w:  2.44
+WA_r sum: 15.30
+WA_w sum: 17.00
+
+elapsed time: 21.218 seconds
+

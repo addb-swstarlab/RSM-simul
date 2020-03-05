@@ -34,7 +34,7 @@ std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tenso
 
   std::random_device rd;
   std::mt19937 random(rd());
-  std::uniform_int_distribution<uint> range(0, buffer.size()-1);
+  std::uniform_int_distribution<uint> range(0, buffer.size()-1 - 4);
   std::vector<uint> indices;
   uint num_entries = 0;
         
@@ -43,8 +43,10 @@ std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tenso
     uint idx = range(random);
     if ( (find(indices.begin(), indices.end(), idx)) == indices.end() ) {
       indices.push_back(idx);
-      b.push_back(buffer[idx]);
-      num_entries++;
+      for(int i = idx; i < idx + 4; i++) {  
+        b.push_back(buffer[i]);
+        num_entries++;
+      }
     }    
   }
   return b;

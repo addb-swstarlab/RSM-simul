@@ -167,7 +167,7 @@ class LevelDB {
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
 
   void set_initial();
-  void set_state(bool input, int input_level);
+  void set_state(bool input);
   
   std::size_t select_action(std::size_t level);
   

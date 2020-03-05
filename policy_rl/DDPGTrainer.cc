@@ -23,6 +23,7 @@ torch::Tensor Actor::forward(torch::Tensor input) {
   input = torch::relu(linear1(input));
   input = output(input);
   input = torch::sigmoid(input);
+  //input = torch::tanh(input);
 
   return input;
 }
@@ -39,7 +40,7 @@ Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
 }
 
 torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
- 
+  //input = torch::relu(conv1(input));
   input = torch::relu(bn1(conv1(input)));
   input = torch::relu(conv2(input));
 
@@ -106,12 +107,16 @@ std::vector<double> DDPGTrainer::act(std::vector<double> state, bool add_noise) 
   actor_local->train();
 
   std::vector<double> v(action.data_ptr<double>(), action.data_ptr<double>() + action.numel());
-  if(add_noise)  noise->sample(v);
+  //for(int i = 0; i < 8; i++)  std::cout << "prev action = " << v[i] << std::endl;
+  if(add_noise) noise->sample(v);
+  
+//  for(int i = 0; i < 8; i++)  std::cout << "after action = " << v[i] << std::endl;
   
   for (size_t i = 0; i < v.size(); i++) {
     v[i] = std::fmin(std::fmax(v[i],0.f), 1.f); // 0 =< v[i] =< 1
   }
-
+  
+//  for(int i = 0; i < 8; i++)   std::cout << "last action = " << v[i] << std::endl;
   return v;
 }
 
