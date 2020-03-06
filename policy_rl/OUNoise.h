@@ -30,8 +30,11 @@ public:
     srand((unsigned int)time(NULL));
     for (size_t i = 0; i < state.size(); i++) {
       auto random = ((double) rand() / (RAND_MAX));
+      //std::cout << "mu = " << mu[i] - state[i] <<std::endl;
       float dx = theta * (mu[i] - state[i]) + sigma * random;
+      //std::cout << "dx = " << dx << std::endl;
       state[i] = state[i] + dx;
+      //std::cout << "mu = " << state[i] <<std::endl;
       action[i] += state[i];
     }
  }

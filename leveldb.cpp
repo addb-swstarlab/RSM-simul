@@ -42,7 +42,7 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(8,8,10240, params_.model_load);  
+  RSMtrainer_ = new DDPGTrainer(8,2,10240, params_.model_load);  
   read_bytes_non_output_ = 0;
   write_bytes_ = 0;
 }
@@ -379,21 +379,6 @@ void LevelDB::set_initial() {
   }
 }
 
-//  if(input) {
-//    std::cout << "=======================================================" << std::endl;
-//    double sum = 0.0;
-//    for(unsigned int i = 3 * 4 * 256; i < 4 * 3 * 256 + 256; i++) {
-//      if(i == 4 * 3 * 256 + 255) {
-//        std::cout << RSMtrainer_->PrevState[i] << std::endl;
-//        sum += RSMtrainer_->PrevState[i]; 
-//      } else {
-//        std::cout << RSMtrainer_->PrevState[i] << " -- ";
-//        sum += RSMtrainer_->PrevState[i]; 
-//      }
-//    }
-//    std::cout << "========================sum : " << sum << " ===============================" << std::endl;
-//  }
-
 void LevelDB::set_state(bool input) {
 //  uint64_t start_t;
   // start_t = get_time();
@@ -403,6 +388,20 @@ void LevelDB::set_state(bool input) {
     RSMtrainer_->PrevState.clear();
     RSMtrainer_->PrevState = RSMtrainer_->PostState;
     if(RSMtrainer_->PrevState.size() == 0) set_initial();  
+    
+//    std::cout << "==============>Prev<===============" <<std::endl;
+//    for(unsigned int l = 0; l < channel_size; l++) {
+//        std::cout <<"===========channel : " << l << "=============== " << std::endl;
+//      for(unsigned int i = 1; i < 5; i++) {
+//        double sum = 0.0;
+//        for(unsigned int k = 0; k < 256; k++) {
+//          std::cout << "[" << RSMtrainer_->PrevState[256*level_size*l + 256*(i-1) + k] <<"] ";  
+//          sum += RSMtrainer_->PrevState[256*level_size*l + 256*(i-1) + k];
+//        }
+//        std::cout << "sum = " << sum <<std::endl;
+//      }
+//    }
+    
   }  else {
     RSMtrainer_->PostState.clear();
     RSMtrainer_->PostState = RSMtrainer_->PrevState;
@@ -423,7 +422,10 @@ void LevelDB::set_state(bool input) {
       int samples_per_level = comp < 100 ? comp : comp/100;
 
       int cnt_per_file = samples_per_level / levels_[i].size();
-      if(cnt_per_file == 0) cnt_per_file++;
+      if(cnt_per_file == 0) {
+        cnt_per_file++;
+        samples_per_level = levels_[i].size();
+      }
 
       for(unsigned int j = 0; j < levels_[i].size(); j++) {
         std::vector<LevelDBItem> sst = *levels_[i][j];
@@ -438,50 +440,105 @@ void LevelDB::set_state(bool input) {
  
         for(unsigned int k = 0; k < traverse; k++) {
           for(unsigned int l = 0; l < channel_size; l++) {
-            int channel = (int)(sst[item_per_cnt*k].key / (double) pow(256, channel_size - 1 - l)) % 256;  
+            int channel = (int)(sst[item_per_cnt*k].key / (double) pow(256, channel_size - 1 - l)) % 256; 
             RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + channel] += (1/(double)samples_per_level);
           }  
         }      
       }
-    }      
+    }
+    
+//    std::cout << "==============>Post<===============" <<std::endl;
+//    for(unsigned int l = 0; l < channel_size; l++) {
+//      std::cout <<"===========channel : " << l << "=============== " << std::endl;
+//      for(unsigned int i = 1; i < 5; i++) {
+//        double sum = 0.0;
+//        for(unsigned int k = 0; k < 256; k++) {
+//          std::cout << "[" << RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + k] <<"] ";  
+//          sum += RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + k];
+//        }
+//        std::cout << "sum = " << sum <<std::endl;
+//      }
+//    }
   }
 }
+
+//std::size_t LevelDB::select_action(std::size_t level) {
+//  auto& level_tables = levels_[level];
+//  std::size_t count = level_tables.size();
+//  std::size_t selected = 0;
+//  double min = std::numeric_limits<double>::max();
+//  int factor = 384;
+//  //int factor = 1;
+//  
+//  for (std::size_t i = 0; i < count; i++) {
+//    auto& sstable = *level_tables[i];
+//    double val = 0.0;
+//
+//    for(unsigned int j = 0; j < action_size; j++) {
+//      int comp = (int) (RSMtrainer_->Action.at(j) * 256);
+//      double min_range = ((int)((double)sstable.front().key / (double)pow(256, channel_size - 1 - j))) % 256;  
+//      double max_range = ((int)((double)sstable.back().key / (double)pow(256, channel_size - 1 - j))) % 256;
+//      double multiplier = (channel_size/2 - 1 - j) >= 0 ? pow(factor, channel_size/2 - 1 - j) : (1/(pow(factor, j - channel_size/2 + 1)));
+//      val += (sqrt(pow(min_range - comp, 2) + pow(max_range - comp, 2)) * multiplier);
+//      //val += sqrt(pow(min_range - comp, 2) + pow(max_range - comp, 2));
+////      std::cout << "pow = " << (double)pow(256, 8 -1 - j) << " and " << (int)((double)sstable.front().key / (double)pow(256, 8 -1 - j)) <<std::endl;
+////     std::cout << "sstable front = " << sstable.front().key << " sstable back = " << sstable.back().key <<std::endl;
+//     // std::cout << " action[" << j << "] = " << comp << std::endl; 
+////      std::cout << "multiplier = " << multiplier << " action[" << j << "] = " << comp << " min_range : " << min_range << " max_range = " << max_range << " val = " << val << std::endl;
+//    }
+//    //std::cout << std::setprecision(16) <<std::endl;
+////    if(compaction_id_ % 1000 == 0) {
+////      std::cout << std::setprecision(32) <<std::endl;
+////      for(unsigned int j = 0; j < action_size; j++) {
+////        double min_range = ((int)((double)sstable.front().key / (double)pow(256, channel_size - 1 - j))) % 256;  
+////        double max_range = ((int)((double)sstable.back().key / (double)pow(256, channel_size - 1 - j))) % 256;
+//// 
+////        std::cout << "j = " << j << " min : " << min_range << " max : " << max_range << std::endl;
+////      }
+////      std::cout << "total [" << i << "] val = " << val << std::endl;
+////    }
+//    
+//    if(val < min) {
+//      min = val;
+//      selected = i;
+//    }
+//  }
+//  if(compaction_id_ % 1000 == 0) {
+//    for(unsigned int j = 0; j < action_size; j++) 
+//      std::cout << "Action [" << j << "] : " << RSMtrainer_->Action.at(j) << " and " << (int) (RSMtrainer_->Action.at(j) * 256) << std::endl;
+//    std::cout << "count = " << count << " selected = " << selected <<std::endl; 
+//  }
+//  return selected;
+//}
 
 std::size_t LevelDB::select_action(std::size_t level) {
   auto& level_tables = levels_[level];
   std::size_t count = level_tables.size();
   std::size_t selected = 0;
-  double min = std::numeric_limits<double>::max();
-  int factor = 384;
-  //int factor = 10;
   
   for (std::size_t i = 0; i < count; i++) {
     auto& sstable = *level_tables[i];
-    double val = 0.0;
 
-    for(unsigned int j = 0; j < action_size; j++) {
-      int comp = (int) (RSMtrainer_->Action.at(j) * 256);
-      double min_range = ((int)((double)sstable.front().key / (double)pow(256, channel_size - 1 - j))) % 256;  
-      double max_range = ((int)((double)sstable.back().key / (double)pow(256, channel_size - 1 - j))) % 256;
-      double multiplier = (channel_size/2 - 1 - j) >= 0 ? pow(factor, channel_size/2 - 1 - j) : (1/(pow(factor, j - channel_size/2 + 1)));
-      val += (sqrt(pow(min_range - comp, 2) + pow(max_range - comp, 2)) * multiplier);
-      //val += sqrt(pow(min_range - comp, 2) + pow(max_range - comp, 2));
-//      std::cout << "pow = " << (double)pow(256, 8 -1 - j) << " and " << (int)((double)sstable.front().key / (double)pow(256, 8 -1 - j)) <<std::endl;
-//     std::cout << "sstable front = " << sstable.front().key << " sstable back = " << sstable.back().key <<std::endl;
-     // std::cout << " action[" << j << "] = " << comp << std::endl; 
-//      std::cout << "multiplier = " << multiplier << " action[" << j << "] = " << comp << " min_range : " << min_range << " max_range = " << max_range << " val = " << val << std::endl;
-    }
-//    std::cout << std::setprecision(16) <<std::endl;
-//    std::cout << "total val = " << val << std::endl;
+    int byte = (int) (RSMtrainer_->Action.at(0) * 7);
+    double max_value = 0;
+    for (int i = 0; i < byte + 1; i++) max_value += 255 * pow(256, i);
+    double value = RSMtrainer_->Action.at(1) * max_value;
     
-    if(val < min) {
-      min = val;
+    double min = (double)sstable.front().key ;  
+    double max = (double)sstable.back().key;
+      
+    if(min <= value < max) {
       selected = i;
     }
   }
-  if(compaction_id_ % 10000 == 0) {
-    for(unsigned int j = 0; j < action_size; j++) 
-      std::cout << "Action [" << j << "] : " << (int) (RSMtrainer_->Action.at(j) * 256) << std::endl;
+  if(compaction_id_ % 1000 == 0) {
+    std::cout << "Action [" << 0 << "] : " << (int) (RSMtrainer_->Action.at(0) * 7) << std::endl;
+    std::cout << "Action [" << 1 << "] : " << (RSMtrainer_->Action.at(1)) << std::endl;
+    double test_value = 0;
+    for (int i = 0; i < (int) (RSMtrainer_->Action.at(0) * 7) + 1; i++) test_value += 255 * pow(256, i);
+    double value = RSMtrainer_->Action.at(1) * test_value;
+
+    std::cout << "test_value = " << test_value << " and value = " << value << std::endl;
     std::cout << "count = " << count << " selected = " << selected <<std::endl; 
   }
   return selected;
@@ -670,9 +727,16 @@ void LevelDB::check_compaction(std::size_t level) {
           sequence(levels_[level].size(), sstable_indices.back());
         } else if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy) {        
-          set_state(true); // input state  
-          if(!params_.model_load)  RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, true);
-          else RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, false);
+          set_state(true); // input state
+//          if(compaction_id_ < 4096) {
+//            srand((unsigned int)time(NULL));
+//            RSMtrainer_->Action.clear();
+//            for(int i = 0; i < action_size; i++) 
+//              RSMtrainer_->Action.push_back((double) rand() / (RAND_MAX));  
+//          } else {
+            if(!params_.model_load)  RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, true);
+            else RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, false);
+          //}
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected); 
         }             
@@ -683,15 +747,15 @@ void LevelDB::check_compaction(std::size_t level) {
         write_bytes_ = 0;
 
         compact(level, sstable_indices);
-        compaction_id_++;
-
-        if(compaction_id_ % 1024 == 0) {
-          std::cout << "level = " << level << " and compaction_id = " << compaction_id_ << std::endl;
-          //std::cout << "Reward = " << (double)(1 / ((double)write_bytes_ / (double)read_bytes_non_output_)) <<std::endl;
-        }
         
         if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMPolicy) {
+          compaction_id_++;
+
+          if(compaction_id_ % 1000 == 0) {
+            std::cout << "level = " << level << " and compaction_id = " << compaction_id_ << std::endl;
+            //std::cout << "Reward = " << (double)(1 / ((double)write_bytes_ / (double)read_bytes_non_output_)) <<std::endl;
+          }
           std::vector<double> Reward;
           Reward.push_back((double)read_bytes_non_output_ / (double)write_bytes_ ); // 1/WAF
           set_state(false);
@@ -703,6 +767,7 @@ void LevelDB::check_compaction(std::size_t level) {
       
             std::vector<double> tempAction;
             if( RSMtrainer_->Action.size() == 0 ) {
+              std::cout << "not here" <<std::endl;
               for(int i = 0; i < action_size; i++) tempAction.push_back(0); // we does not consider level = 0;
             } else {
               tempAction = RSMtrainer_->Action;
