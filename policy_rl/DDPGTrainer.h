@@ -45,7 +45,7 @@ class Critic : public torch::nn::Module {
 class DDPGTrainer : public Trainer {
   public:
     double tau = 5*(1e-3);              // for soft update of target parameters
-    double lr_actor = 1e-4;         // learning rate of the actor
+    double lr_actor = 5*(1e-4);         // learning rate of the actor
     double lr_critic = 1e-3;        // learning rate of the critic
     double weight_decay = 0;        // L2 weight decay
     

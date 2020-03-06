@@ -76,22 +76,29 @@ void LevelDB::print_status() const {
 }
 
 void LevelDB::print_network_status() const {
-  FILE* fp = fopen("/home/wonki/rsm-simul/network_info.txt", "wt");
-  fprintf(fp, " ==============Reward============== \n");
+  FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "wt");
+  fprintf(fp_reward, " ==============Reward============== \n");
 
   for(uint i = 0; i < RSMtrainer_->rewards_.size(); i++) {
-    fprintf(fp, "%lf\n", RSMtrainer_->rewards_[i]);
+    fprintf(fp_reward, "%lf\n", RSMtrainer_->rewards_[i]);
   }
   
-  fprintf(fp, " ==============Actor Loss============== \n");
+  FILE* fp_actor = fopen("/home/wonki/rsm-simul/actor_info.txt", "wt");
+  
+  fprintf(fp_actor, " ==============Actor Loss============== \n");
   for(uint i = 0; i < RSMtrainer_->actor_loss_.size(); i++) {
-    fprintf(fp, "%lf\n", RSMtrainer_->actor_loss_[i]);
+    fprintf(fp_actor, "%lf\n", RSMtrainer_->actor_loss_[i]);
   }
   
-  fprintf(fp, " ==============Critic Loss============== \n");
+  FILE* fp_critic = fopen("/home/wonki/rsm-simul/critic_info.txt", "wt");
+  fprintf(fp_critic, " ==============Critic Loss============== \n");
   for(uint i = 0; i < RSMtrainer_->critic_loss_.size(); i++) {
-    fprintf(fp, "%lf\n", RSMtrainer_->critic_loss_[i]);
+    fprintf(fp_critic, "%lf\n", RSMtrainer_->critic_loss_[i]);
   }
+}
+
+void LevelDB::setCompaction(LevelDBCompactionMode mode) {
+  params_.compaction_mode = mode;
 }
 
 void LevelDB::dump_state(FILE* fp) const {
@@ -432,7 +439,7 @@ void LevelDB::set_state(bool input) {
         for(unsigned int k = 0; k < traverse; k++) {
           for(unsigned int l = 0; l < channel_size; l++) {
             int channel = (int)(sst[item_per_cnt*k].key / (double) pow(256, channel_size - 1 - l)) % 256;  
-            RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + channel] += 1/samples_per_level;
+            RSMtrainer_->PostState[256*level_size*l + 256*(i-1) + channel] += (1/(double)samples_per_level);
           }  
         }      
       }
@@ -447,8 +454,6 @@ std::size_t LevelDB::select_action(std::size_t level) {
   double min = std::numeric_limits<double>::max();
   int factor = 384;
   //int factor = 10;
-//  for(unsigned int j = 0; j < action_size; j++) 
-//    std::cout << "Action [" << j << "] : " << (int) (RSMtrainer_->Action.at(j) * 256) << std::endl;
   
   for (std::size_t i = 0; i < count; i++) {
     auto& sstable = *level_tables[i];
@@ -474,7 +479,11 @@ std::size_t LevelDB::select_action(std::size_t level) {
       selected = i;
     }
   }
-  //if(compaction_id_ % 100 == 0) std::cout << "count = " << count << " selected = " << selected <<std::endl; 
+  if(compaction_id_ % 10000 == 0) {
+    for(unsigned int j = 0; j < action_size; j++) 
+      std::cout << "Action [" << j << "] : " << (int) (RSMtrainer_->Action.at(j) * 256) << std::endl;
+    std::cout << "count = " << count << " selected = " << selected <<std::endl; 
+  }
   return selected;
 }
 
