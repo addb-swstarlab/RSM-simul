@@ -17,8 +17,8 @@ Actor::Actor(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
 }
 
 torch::Tensor Actor::forward(torch::Tensor input) {
-  //input = torch::relu(bn1(conv1(input)));
-  input = torch::relu(conv1(input));
+  input = torch::relu(bn1(conv1(input)));
+  //input = torch::relu(conv1(input));
   input = torch::relu(conv2(input));
 
   input = input.view({input.size(0), -1});
@@ -43,8 +43,8 @@ Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
 }
 
 torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
-  //input = torch::relu(bn1(conv1(input)));
-  input = torch::relu(conv1(input));
+  input = torch::relu(bn1(conv1(input)));
+  //input = torch::relu(conv1(input));
   input = torch::relu(conv2(input));
 
   input = input.view({input.size(0), -1});
@@ -56,7 +56,7 @@ torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
   return fc2->forward(x);
 }
 
-DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity, bool model_load)
+DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity)
     : Trainer(capacity),
       actor_local(std::make_shared<Actor>(channelSize, actionSize)),
       actor_target(std::make_shared<Actor>(channelSize, actionSize)),
@@ -94,7 +94,7 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
     hard_copy(critic_target, critic_local);
     noise = new OUNoise(static_cast<size_t>(actionSize));
     
-    if(model_load)  loadCheckPoints();   
+    loadCheckPoints();   
     PrevState.reserve(4096);
     PostState.reserve(4096);
 }  
@@ -110,7 +110,7 @@ std::vector<double> DDPGTrainer::act(std::vector<double> state, bool add_noise) 
   actor_local->train();
 
   std::vector<double> v(action.data_ptr<double>(), action.data_ptr<double>() + action.numel());
-  //for(int i = 0; i < 8; i++)  std::cout << "prev action = " << v[i] << std::endl;
+  //for(int i = 0; i < 1; i++)  std::cout << "prev action = " << v[i] << std::endl;
   if(add_noise) noise->sample(v);
   
 //  for(int i = 0; i < 8; i++)  std::cout << "after action = " << v[i] << std::endl;

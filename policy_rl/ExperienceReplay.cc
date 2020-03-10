@@ -34,7 +34,7 @@ std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tenso
 
   std::random_device rd;
   std::mt19937 random(rd());
-  std::uniform_int_distribution<uint> range(0, buffer.size()-1 - 4);
+  std::uniform_int_distribution<uint> range(0, buffer.size() - 1 - 4);
   std::vector<uint> indices;
   uint num_entries = 0;
         

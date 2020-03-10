@@ -76,7 +76,6 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   printf("wb_size=%lu\n", wb_size);
   printf("enable_fsync=%s\n", enable_fsync ? "1" : "0");
   printf("use_custom_sizes=%s\n", use_custom_sizes ? "1" : "0");
-  printf("model_load=%s\n", model_load ? "1" : "0");
   printf("\n");
   fflush(stdout);
 
@@ -115,7 +114,6 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   params.use_custom_sizes = use_custom_sizes;
   params.hint_num_unique_keys = num_unique_keys;
   params.hint_theta = theta;
-  params.model_load = model_load;
 
   StoreType store(params, stats);
 
@@ -145,9 +143,9 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 
       for (uint64_t i = 0; i < this_request_batch_size; i++) {
         // for sequential insert
-        store.put(key, item_size);
+        //store.put(key, item_size);
         // for random insert
-        // store.put(keys[key], item_size);
+        store.put(keys[key], item_size);
         key++;
       }
       num_processed_requests += this_request_batch_size;
@@ -329,7 +327,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 }
 
 int main(int argc, const char* argv[]) {
-  if (argc < 12) {
+  if (argc < 11) {
     printf(
         "%s STORE-TYPE NUM-UNIQUE-KEYS ACTIVE-KEY-MODE DEPENDENCY-MODE "
         "NUM-REQUESTS ZIPF-THETA COMPACTION-MODE WB-SIZE ENABLE-FSYNC "
@@ -345,7 +343,6 @@ int main(int argc, const char* argv[]) {
     printf("WB-SIZE: 4194304, ...\n");
     printf("ENABLE-FSYNC: 0, 1\n");
     printf("USE-CUSTOM-SIZES: 0, 1\n");
-    printf("MODEL LOAD: 0, 1\n");
     return 1;
   }
   int store_type;

@@ -43,7 +43,8 @@ enum class LevelDBCompactionMode {
   // RocksDB - Universal Compaction
   kRocksDBUniversal = 10,
   // RSM-tree Compaction
-  kRSMPolicy = 11,
+  kRSMTrain = 11,
+  kRSMEvaluate = 12,
 };
 
 struct LevelDBParams {
@@ -100,7 +101,6 @@ struct LevelDBParams {
     hint_theta = 0.;
 
     enable_fsync = false;
-    model_load = false;
   }
 };
 
@@ -237,6 +237,6 @@ class LevelDB {
   uint64_t write_bytes_;
   int64_t level_size = 4;
   int64_t channel_size = 8;
-  int64_t action_size = 2;
+  int64_t action_size = 1;
   
 };

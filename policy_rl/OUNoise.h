@@ -13,6 +13,7 @@ private:
   std::vector<double> mu;
   std::vector<double> state;
   double theta=0.15;
+  //double theta=0.5;
   double sigma=0.1;
 
 public:
