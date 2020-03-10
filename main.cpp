@@ -51,7 +51,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
           ActiveKeyMode active_key_mode, DependencyMode dependency_mode,
           uint64_t num_requests, double theta,
           LevelDBCompactionMode compaction_mode, uint64_t wb_size,
-          bool enable_fsync, bool use_custom_sizes, bool model_load,
+          bool enable_fsync, bool use_custom_sizes,
           const std::vector<uint64_t>& dump_points) {
   // The number of unique keys.
   // uint32_t num_unique_keys = 2 * 1000 * 1000;
@@ -363,15 +363,15 @@ int main(int argc, const char* argv[]) {
   uint64_t wb_size = static_cast<uint64_t>(atol(argv[8]));
   bool enable_fsync = atoi(argv[9]) != 0;
   bool use_custom_sizes = atoi(argv[10]) != 0;
-  bool model_load = atoi(argv[11]) != 0;
+
   std::vector<uint64_t> dump_points;
-  for (int i = 12; i < argc; i++)
+  for (int i = 11; i < argc; i++)
     dump_points.push_back(static_cast<uint64_t>(atol(argv[i])));
 
   if (store_type == 0)
     test<LevelDB>("leveldb-sim", num_unique_keys, active_key_mode,
                   dependency_mode, num_requests, theta, compaction_mode,
-                  wb_size, enable_fsync, use_custom_sizes, model_load, dump_points);
+                  wb_size, enable_fsync, use_custom_sizes, dump_points);
   else
     assert(false);
 

@@ -60,7 +60,7 @@ class DDPGTrainer : public Trainer {
     torch::optim::Adam critic_optimizer;
     torch::Device device;
        
-  DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity, bool model_load);
+  DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity);
   virtual std::vector<double> act(std::vector<double> state, bool add_noise);
   void reset() {
     noise->reset();  

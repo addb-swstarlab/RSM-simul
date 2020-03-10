@@ -78,7 +78,6 @@ struct LevelDBParams {
 
   // Enable fsync for implementation-based tests.
   bool enable_fsync;
-  bool model_load;
 
   LevelDBParams() {
     log_size_threshold =

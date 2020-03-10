@@ -76,12 +76,15 @@ void LevelDB::print_status() const {
 }
 
 void LevelDB::print_network_status() const {
-  FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "wt");
-  fprintf(fp_reward, " ==============Reward============== \n");
-
-  for(uint i = 0; i < RSMtrainer_->rewards_.size(); i++) {
-    fprintf(fp_reward, "%lf\n", RSMtrainer_->rewards_[i]);
+  FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");
+  
+  double sum = 0.0;
+  uint size = RSMtrainer_->rewards_.size();
+  for(uint i = 0; i < size; i++) {
+    sum += RSMtrainer_->rewards_[i];
   }
+  
+  fprintf(fp_reward, "%lf\n", sum/(double)size);
   
   FILE* fp_actor = fopen("/home/wonki/rsm-simul/actor_info.txt", "wt");
   
