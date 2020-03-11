@@ -4,11 +4,12 @@
  * and open the template in the editor.
  */
 #include <math.h>
+#include <sys/stat.h>
 #include "DDPGTrainer.h"
 
 /* Actor */
 Actor::Actor(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 256}).stride(1)));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 4096}).stride(1)));
   conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 1}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
   linear1 = register_module("linear1", torch::nn::Linear(64*2, 64));
@@ -32,7 +33,7 @@ torch::Tensor Actor::forward(torch::Tensor input) {
 
 /* Critic */
 Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 256}).stride(1)));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 4096}).stride(1)));
   conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 1}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
   linear1 = register_module("linear1", torch::nn::Linear(64*2, 64));
@@ -95,12 +96,12 @@ DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capaci
     noise = new OUNoise(static_cast<size_t>(actionSize));
     
     loadCheckPoints();   
-    PrevState.reserve(4096);
-    PostState.reserve(4096);
+    PrevState.reserve(49152);
+    PostState.reserve(49152);
 }  
 
 std::vector<double> DDPGTrainer::act(std::vector<double> state, bool add_noise) {
-  torch::Tensor torchState = torch::from_blob(state.data(), {1, 8, 4, 256}, torch::dtype(torch::kDouble)).to(device);
+  torch::Tensor torchState = torch::from_blob(state.data(), {1, 3, 4, 4096}, torch::dtype(torch::kDouble)).to(device);
   //torch::Tensor torchState = torch::from_blob(state.data(), {1,4,4,256}, torch::dtype(torch::kDouble));
   actor_local->eval();
 
@@ -196,6 +197,11 @@ void DDPGTrainer::loadCheckPoints()
 {
     auto fileActor ("/home/wonki/rsm_checkpoint/ckp_actor.pt");
     auto fileCritic ("/home/wonki/rsm_checkpoint/ckp_critic.pt");
-    torch::load(actor_local, fileActor);
-    torch::load(critic_local, fileCritic);
+    struct stat actor_buffer;
+    struct stat critic_buffer;
+    if((stat(fileActor, &actor_buffer) == 0) && 
+       (stat(fileCritic, &critic_buffer) == 0 )) {
+      torch::load(actor_local, fileActor);
+      torch::load(critic_local, fileCritic);
+    }
 }

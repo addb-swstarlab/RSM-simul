@@ -28,12 +28,14 @@ echo "use-custome-size: ${9}"
 echo "episode-num: ${10}"
 
 if [ ${6} -eq 11 ]; then
+  rm kRSMPolicy_train.txt
   for ((i=0; i<${10}; i++))
   do
     echo "=================${i}-th episode execution================="
-    ./main leveldb-sim $1 $2 $3 $4 $5 $6 $7 $8 $9 > kRSMPolicy_train.txt
+    ./main leveldb-sim $1 $2 $3 $4 $5 $6 $7 $8 $9 >> kRSMPolicy_train.txt
   done
 else
-   ./main leveldb-sim $1 $2 $3 $4 $5 $6 $7 $8 $9 > kRSMPolicy_evaluate.txt
+  rm kRSMPolicy_evalute.txt
+   ./main leveldb-sim $1 $2 $3 $4 $5 $6 $7 $8 $9 >> kRSMPolicy_evaluate.txt
 fi
 

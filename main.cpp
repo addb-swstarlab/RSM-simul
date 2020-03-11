@@ -150,21 +150,21 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
       }
       num_processed_requests += this_request_batch_size;
 
-      if (verbose) {
-        printf("key %lu/%u inserted\n", num_processed_requests,
-               num_unique_keys);
-        store.print_status();
-        print_stats(stats,
-                    num_processed_requests * static_cast<uint64_t>(item_size));
-        printf("\n");
-        fflush(stdout);
-      }
+//      if (verbose) {
+//        printf("key %lu/%u inserted\n", num_processed_requests,
+//               num_unique_keys);
+//        store.print_status();
+//        print_stats(stats,
+//                    num_processed_requests * static_cast<uint64_t>(item_size));
+//        printf("\n");
+//        fflush(stdout);
+//      }
     }
 
     printf("key %lu/%u inserted\n", num_processed_requests, num_unique_keys);
-    store.print_status();
-    print_stats(stats,
-                num_processed_requests * static_cast<uint64_t>(item_size));
+//    store.print_status();
+//    print_stats(stats,
+//                num_processed_requests * static_cast<uint64_t>(item_size));
     printf("\n");
     fflush(stdout);
   }
