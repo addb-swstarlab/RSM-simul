@@ -86,14 +86,14 @@ void LevelDB::print_network_status() const {
   
   fprintf(fp_reward, "%lf\n", sum/(double)size);
   
-  FILE* fp_actor = fopen("/home/wonki/rsm-simul/actor_info.txt", "wt");
+  FILE* fp_actor = fopen("/home/wonki/rsm-simul/actor_info.txt", "at");
   
   fprintf(fp_actor, " ==============Actor Loss============== \n");
   for(uint i = 0; i < RSMtrainer_->actor_loss_.size(); i++) {
     fprintf(fp_actor, "%lf\n", RSMtrainer_->actor_loss_[i]);
   }
   
-  FILE* fp_critic = fopen("/home/wonki/rsm-simul/critic_info.txt", "wt");
+  FILE* fp_critic = fopen("/home/wonki/rsm-simul/critic_info.txt", "at");
   fprintf(fp_critic, " ==============Critic Loss============== \n");
   for(uint i = 0; i < RSMtrainer_->critic_loss_.size(); i++) {
     fprintf(fp_critic, "%lf\n", RSMtrainer_->critic_loss_[i]);
