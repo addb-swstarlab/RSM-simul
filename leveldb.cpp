@@ -39,6 +39,8 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
   level_overlapping_sstables_.push_back(0);
   level_overlapping_sstables_false_.push_back(0);
   level_sweeps_.push_back(0);
+  
+  for(int i = 0; i < 4; i++) compaction_number.push_back(0);
 
   next_version_ = 0;
   compaction_id_ = 0;
@@ -402,8 +404,9 @@ void LevelDB::set_state(bool input) {
     }
     
     double max_value = 0;
-    for (int i = 0; i < 8; i++) max_value += (255 * pow(256, i));
-    //std::cout << "max_value = " << max_value << std::endl;
+    //for (int i = 0; i < 8; i++) max_value += (255 * pow(256, i));
+    max_value = (double)params_.hint_num_unique_keys;
+//    std::cout << "max_value = " << max_value << std::endl;
     
     for(unsigned int i = 1; i < 5; i++) {
       if(i > levels_.size() - 1) break;
@@ -507,8 +510,6 @@ std::size_t LevelDB::select_action(std::size_t level) {
   double maximum_key = (double) last_table.back().key;
   double value = RSMtrainer_->Action.at(0) * (maximum_key - minimum_key);
   value += minimum_key;
-  double base_minimum = std::numeric_limits<double>::max();
-  double pivot = 0;
   
   for (std::size_t i = 0; i < count; i++) {
     auto& sstable = *level_tables[i];
@@ -516,18 +517,34 @@ std::size_t LevelDB::select_action(std::size_t level) {
     min = (double)sstable.front().key ;  
     max = (double)sstable.back().key;
     
-    pivot = sqrt(pow(min -value, 2) + pow(max - value, 2));
-    if(pivot < base_minimum) {
-      base_minimum = pivot;
-      selected = i;
+    if(min <= value) {
+      if(value <= max) {
+        selected = i;
+        break;
+      }
+    } else { // min > value
+      auto& victim_table = *level_tables[i-1];
+      if ((value - (double)victim_table.back().key)
+            > ((double)sstable.front().key - value)) {
+        selected = i;
+        break;
+      } else {
+        selected = i-1;
+        break;
+      }
     }
   }
   
   if(compaction_id_ % 1000 == 0) {
     std::cout << std::setprecision(32);
+    std::cout << "top max = " << (double)params_.hint_num_unique_keys << std::endl;
+    std::cout << "minKey = " << minimum_key << std::endl;
     std::cout << "maxKey = " << maximum_key <<  std::endl;
     std::cout << "Action [" << 0 << "] : " << (double) (RSMtrainer_->Action.at(0)) << std::endl;
     std::cout << "Value = " << value <<std::endl;
+    auto &view_table = *level_tables[selected];
+    std::cout << "target min = " << view_table.front().key << 
+            " target max = " << view_table.back().key << std::endl;
     std::cout << "count = " << count << " selected = " << selected <<std::endl; 
   }
   return selected;
@@ -744,9 +761,13 @@ void LevelDB::check_compaction(std::size_t level) {
         
         if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain ||
             params_.compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {
+          compaction_number[level-1]++;
           compaction_id_++;
           std::cout << std::setprecision(32);
-          if((compaction_id_-1) % 1000 == 0) {             
+          if((compaction_id_-1) % 1000 == 0) {
+            for(int i = 0; i < 4; i++) {
+              std::cout << "level = " << i+1 << " number = " << compaction_number[i] << std::endl;    
+            }
             std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
             std::cout << "read = " << (double) read_bytes_non_output_ << " write = " << (double) write_bytes_ <<std::endl;
             std::cout << "Reward = " << ((double) read_bytes_non_output_/(double) write_bytes_) <<std::endl;
@@ -755,11 +776,12 @@ void LevelDB::check_compaction(std::size_t level) {
           
           std::vector<double> Reward;
 //          (((double)write_bytes_ )* -1 /(double)read_bytes_non_output_)/100
-          Reward.push_back((double) read_bytes_non_output_/(double) write_bytes_ ); // 1/WAF
+          Reward.push_back((double) read_bytes_non_output_ /(double) write_bytes_ ); // 1/WAF
           set_state(false);
 
           if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
-            torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
+            //torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
+            torch::Device device(torch::kCPU);
             torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, channel_size, level_size, bucket_size}, torch::dtype(torch::kDouble)).to(device);
             torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, channel_size, level_size, bucket_size}, torch::dtype(torch::kDouble)).to(device);
       
@@ -776,7 +798,7 @@ void LevelDB::check_compaction(std::size_t level) {
 
             RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
 
-            if(RSMtrainer_->buffer.size_buffer() >= 1024) {
+            if(RSMtrainer_->buffer.size_buffer() >= 3072) {
               RSMtrainer_->learn();
             }
            
@@ -1055,7 +1077,8 @@ void LevelDB::compact(
       params_.compaction_mode == LevelDBCompactionMode::kMostNarrow ||
       params_.compaction_mode == LevelDBCompactionMode::kLeastOverlap ||
       params_.compaction_mode == LevelDBCompactionMode::kLargestRatio ||
-      params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
+      params_.compaction_mode == LevelDBCompactionMode::kRSMTrain || 
+      params_.compaction_mode == LevelDBCompactionMode::kRSMEvaluate ) {
     min_key = LevelDBKeyMax;
     max_key = LevelDBKeyMin;
     for (auto i : sstable_indices_current) {

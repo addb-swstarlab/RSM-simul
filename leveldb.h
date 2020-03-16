@@ -238,5 +238,6 @@ class LevelDB {
   int64_t channel_size = 3;
   int64_t action_size = 1;
   int64_t bucket_size = 4096;
+  std::vector<uint64_t> compaction_number;
   
 };

@@ -9,10 +9,11 @@
 
 /* Actor */
 Actor::Actor(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 4096}).stride(1)));
-  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 1}).stride(1)));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 1024}).stride({1, 512})));
+  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
+ // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2, 64));
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*6, 64));
   output = register_module("output", torch::nn::Linear(64, action_size));
   bn1 = register_module("bn1", torch::nn::BatchNorm2d(32));
 }
@@ -21,6 +22,7 @@ torch::Tensor Actor::forward(torch::Tensor input) {
   input = torch::relu(bn1(conv1(input)));
   //input = torch::relu(conv1(input));
   input = torch::relu(conv2(input));
+//  input = torch::relu(conv3(input));
 
   input = input.view({input.size(0), -1});
   input = torch::relu(linear1(input));
@@ -33,10 +35,11 @@ torch::Tensor Actor::forward(torch::Tensor input) {
 
 /* Critic */
 Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 4096}).stride(1)));
-  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 1}).stride(1)));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 1024}).stride({1, 512})));
+  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
+ // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2, 64));
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*6, 64));
   
   fc1 = register_module("fc1", torch::nn::Linear(64 + action_size, 32));
   fc2 = register_module("fc2", torch::nn::Linear(32, action_size));
@@ -47,6 +50,7 @@ torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
   input = torch::relu(bn1(conv1(input)));
   //input = torch::relu(conv1(input));
   input = torch::relu(conv2(input));
+ // input = torch::relu(conv3(input));
 
   input = input.view({input.size(0), -1});
   input = torch::relu(linear1(input));
@@ -141,10 +145,10 @@ void DDPGTrainer::learn() {
     rewards.push_back(std::get<3>(i));
   }
 
-  torch::Tensor states_tensor = torch::cat(states, 0);
-  torch::Tensor new_states_tensor = torch::cat(new_states, 0);
-  torch::Tensor actions_tensor = torch::cat(actions, 0);
-  torch::Tensor rewards_tensor = torch::cat(rewards, 0);
+  torch::Tensor states_tensor = torch::cat(states, 0).to(device);
+  torch::Tensor new_states_tensor = torch::cat(new_states, 0).to(device);
+  torch::Tensor actions_tensor = torch::cat(actions, 0).to(device);
+  torch::Tensor rewards_tensor = torch::cat(rewards, 0).to(device);
                    
   auto actions_next = actor_target->forward(new_states_tensor);
   auto Q_targets_next = critic_target->forward(new_states_tensor, actions_next);

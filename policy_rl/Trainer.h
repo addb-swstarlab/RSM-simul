@@ -16,7 +16,7 @@
 
 class Trainer {
   public:
-    int64_t batch_size = 32;
+    int64_t batch_size = 16;
     double gamma = 0.99;
     int64_t frame_id = 0;
     std::vector<double> Action;
