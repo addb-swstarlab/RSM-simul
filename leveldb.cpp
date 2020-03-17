@@ -548,30 +548,32 @@ void LevelDB::set_state(std::vector<double> &state) {
     
       bool end = false;
       uint64_t entry_num = 0;
+
       for(unsigned int j = idx; j < count; j++) {
         std::vector<LevelDBItem> sst = *level_tables[j];
         double minimum_key_file = (double) sst.front().key;
         double maximum_key_file = (double) sst.back().key;
         
-        if (minimum_key_file >= previous) {
-          if(maximum_key_file < previous + add_quo) {  
-            entry_num += sst.size();  
-          } else {
-            entry_num += (int)(sst.size() * (previous + add_quo - minimum_key_file) / (maximum_key_file - minimum_key_file)); 
-            end = true;
-          }
-        } else { /* minimum_key_file < previous */
-          entry_num += (int)(sst.size() * (maximum_key_file - previous)/(maximum_key_file - minimum_key_file));  
-        }
         
+        if (minimum_key_file < previous && maximum_key_file > previous) {
+          entry_num += (int)(sst.size() * (maximum_key_file - previous)/(maximum_key_file - minimum_key_file));    
+        } else if (minimum_key_file >= previous && maximum_key_file <= previous + add_quo) {
+          entry_num += sst.size();  
+        } else if (minimum_key_file < previous + add_quo && maximum_key_file > previous + add_quo) {
+          entry_num += (int)(sst.size() * (previous + add_quo - minimum_key_file) / (maximum_key_file - minimum_key_file)); 
+          end = true;
+        } else if (minimum_key_file >= previous + add_quo) {
+          end = true;
+        }
+       
         if(end) {
           idx = j;
           break;
         }
        }
-        
-      state[bucket_size*level_size*2 + bucket_size*(i-1) + k] = (double)entry_num;
-      previous += add_quo; 
+       //std::cout << "entry num = " << entry_num <<std::endl;
+       state[bucket_size*level_size*2 + bucket_size*(i-1) + k] = (double)entry_num;
+       previous += add_quo; 
     } 
                       
     double sum = 0;
