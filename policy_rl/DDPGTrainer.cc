@@ -9,11 +9,11 @@
 
 /* Actor */
 Actor::Actor(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 1024}).stride({1, 512})));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 256}).stride({1, 64})));
   conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
  // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2*6, 64));
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*60, 64));
   output = register_module("output", torch::nn::Linear(64, action_size));
   bn1 = register_module("bn1", torch::nn::BatchNorm2d(32));
 }
@@ -35,11 +35,11 @@ torch::Tensor Actor::forward(torch::Tensor input) {
 
 /* Critic */
 Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 1024}).stride({1, 512})));
+  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 256}).stride({1, 64})));
   conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
  // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
   //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2*6, 64));
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*60, 64));
   
   fc1 = register_module("fc1", torch::nn::Linear(64 + action_size, 32));
   fc2 = register_module("fc2", torch::nn::Linear(32, action_size));
