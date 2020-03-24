@@ -171,6 +171,8 @@ class LevelDB {
   //void set_state(bool input);
   void set_state(std::vector<double> &state);
   
+  bool check_difference(std::vector<double> state, std::vector<double> state2);
+  
   std::size_t select_action(std::size_t level);
   
   // Check if we need new compaction.
@@ -237,7 +239,7 @@ class LevelDB {
   uint64_t write_bytes_;
   int64_t level_size = 4;
   int64_t channel_size = 3;
-  int64_t action_size = 1;
+  int64_t action_size = 4;
   int64_t bucket_size = 4096;
   std::vector<uint64_t> compaction_number;
   

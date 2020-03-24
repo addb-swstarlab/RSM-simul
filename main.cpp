@@ -86,7 +86,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   // Uses uint32_t instead of uint64_t to reduce cache pollution.
   // TODO: Use hashing instead of the shuffle key array.
   std::vector<uint64_t> keys;
-  // assert(num_unique_keys < (1UL << 32));
+  assert(num_unique_keys < (1UL << 32));
   sequence(num_unique_keys, keys);
   // Comment this out to disable hashing.
   shuffle(keys);

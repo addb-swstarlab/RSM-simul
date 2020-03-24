@@ -34,22 +34,17 @@ std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tenso
 
   std::random_device rd;
   std::mt19937 random(rd());
-  std::uniform_int_distribution<uint> range(0, buffer.size() - 1 - 4);
+  std::uniform_int_distribution<uint> range(0, buffer.size() - 1);
   std::vector<uint> indices;
   uint num_entries = 0;
         
-//  std::cout << "==== sample ====" <<std::endl;
   for(;;) {
     if(num_entries == batch_size) break;
     uint idx = range(random);
     if ((find(indices.begin(), indices.end(), idx)) == indices.end()) {
       indices.push_back(idx);
-      for(int i = idx; i < idx + 4; i++) {  
-//        std::cout << "select = " << i << " ";  
-        b.push_back(buffer[i]);
-        num_entries++;
-      }
-//      std::cout << std::endl;
+      b.push_back(buffer[idx]);
+      num_entries++;
     }    
   }
   return b;
