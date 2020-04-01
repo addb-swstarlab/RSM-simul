@@ -61,6 +61,51 @@ torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
   return fc2->forward(x);
 }
 
+/* Graph Actor */
+GraphActor::GraphActor(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size) : torch::nn::Module() { 
+  gc1 = new GraphConvolution(in_features, n_hidden);
+  gc2 = new GraphConvolution(n_hidden, n_output); 
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*508, 64));
+  output = register_module("output", torch::nn::Linear(64, action_size));
+}
+
+torch::Tensor GraphActor::forward(torch::Tensor input, torch::Tensor adj) {
+  input = torch::relu(gc1->forward(input, adj));
+  input = torch::dropout(input, 0.3, is_training());
+  input = gc2->forward(input, adj);
+ 
+  input = input.view({input.size(0), -1});
+  input = torch::relu(linear1(input));
+  input = output(input);
+  input = torch::sigmoid(input);
+  //input = torch::tanh(input);
+
+  return input;
+}
+
+/* Critic */
+GraphCritic::GraphCritic(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size) : torch::nn::Module() {
+  gc1 = new GraphConvolution(in_features, n_hidden);
+  gc2 = new GraphConvolution(n_hidden, n_output); 
+  linear1 = register_module("linear1", torch::nn::Linear(64*2*508, 64));  
+  fc1 = register_module("fc1", torch::nn::Linear(64 + action_size, 32));
+  fc2 = register_module("fc2", torch::nn::Linear(32, action_size));
+}
+
+torch::Tensor GraphCritic::forward(torch::Tensor input, torch::Tensor adj, torch::Tensor action) {
+  input = torch::relu(gc1->forward(input, adj));
+  input = torch::dropout(input, 0.3, is_training());
+  input = gc2->forward(input, adj);
+
+  input = input.view({input.size(0), -1});
+  input = torch::relu(linear1(input));
+  
+  auto x = torch::cat({input, action}, 1);
+  x = torch::relu(fc1->forward(x));
+
+  return fc2->forward(x);
+}
+
 DDPGTrainer::DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity)
     : Trainer(capacity),
       actor_local(std::make_shared<Actor>(channelSize, actionSize)),

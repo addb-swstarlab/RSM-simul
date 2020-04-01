@@ -171,6 +171,10 @@ class LevelDB {
   //void set_state(bool input);
   void set_state(std::vector<double> &state);
   
+  void set_matrix(std::vector<double> &matrix);
+  
+  void set_feature(std::vector<double> &matrix);
+  
   bool check_difference(std::vector<double> state, std::vector<double> state2);
   
   std::size_t select_action(std::size_t level);
@@ -242,5 +246,7 @@ class LevelDB {
   int64_t action_size = 4;
   int64_t bucket_size = 4096;
   std::vector<uint64_t> compaction_number;
+  std::vector<int> adj_matrix(10000*10000);
+  std::vector<int> feat_matrix(3*10000);
   
 };

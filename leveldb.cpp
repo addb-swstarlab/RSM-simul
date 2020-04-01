@@ -485,6 +485,106 @@ void LevelDB::set_state(std::vector<double> &state) {
   }
 }
 
+void link_vertex(std::vector<double> &matrix, int src, int dst) {
+  matrix[10000*src + dst] = 1;
+  matrix[10000*dst + src] = 1;
+}
+
+void LevelDB::set_matrix(std::vector<double> &matrix) {   
+  matrix.clear(); 
+  matrix.resize(10000*10000);
+  
+  std::vector<int> level_size;
+  int prev_size = 0;
+  for (std::size_t i = 0; i < levels_.size; i++) {
+    auto& level_tables = levels_[i];
+    level_size.push_back(prev_size);
+    prev_size += level_tables.size();
+  }
+  
+  /* 3  --- 0
+     10 --- 1
+     25 --- 2
+  */
+  
+  /* 0 -- 0
+   * 3 -- 1
+   * 13 -- 2
+   * 38 -- 3    
+   */ 
+    
+  for (std::size_t j = 0; j < levels_.size; j++) {
+    auto& level_tables = levels_[j];
+    int level_base_idx = level_size[j];
+           
+    /* target level link */
+    for(std::size_t k = 1; k < level_tables.size(); k++) {
+      link_vertex(matrix, level_base_idx, level_base_idx + k);
+    }    
+    
+    if(j + 1 > levels_.size() - 1) break;
+    /* target next level link */
+    auto& level_tables_next = levels_[j + 1];  
+    
+    std::size_t sstable_idx_start = 0;
+    std::size_t sstable_idx_end = 0;
+    
+    for(std::size_t k = 0; k < level_tables.size(); k++) {
+      auto& sstable = *level_tables[k];
+      if (sstable_idx_end > 0) sstable_idx_start = sstable_idx_end - 1;
+    
+      while (sstable_idx_start < level_tables_next.size() && 
+              level_tables_next[sstable_idx_start]->back().key < 
+              sstable.front().key) sstable_idx_start++;
+    
+      sstable_idx_end = sstable_idx_start;
+    
+      while (sstable_idx_end < level_tables_next.size() &&
+              level_tables_next[sstable_idx_end]->front().key < 
+              sstable.back().key) sstable_idx_end++;
+
+      for(std::size_t l = sstable_idx_start; l < sstable_idx_end + 1; l++)
+        link_vertex(matrix, level_base_idx + k, level_base_idx + l);
+    }    
+  }
+  for (int i = 0; i < level_size.back(); i++) 
+   /* I matrix */
+  matrix[10000*i + i] = 1;
+}
+
+void LevelDB::set_feature(std::vector<double> &matrix) {   
+  matrix.clear(); 
+  matrix.resize(3*10000);
+  
+  uint64_t idx = 0;
+      
+  double max_value = 0;
+  max_value = log((double)params_.hint_num_unique_keys);
+    
+  for(std::size_t i = 0; i < levels_.size(); i++) {
+    auto& level_tables = levels_[i];
+    for(std::size_t j = 0; j < level_tables.size(); j++) {
+      auto& sstable = *level_tables[j];
+
+      matrix[idx++] = (double)sstable.front().key / max_value;
+      matrix[idx++] = (double)sstable.back().key / max_value;
+      matrix[idx++] = (double)sstable.size();
+    }
+  }
+  
+  uint64_t max = 0;
+  for(std::size_t j = 0; j < idx/3; j++) {
+    if(max < matrix[3*j + 2])
+      max = matrix[3*j + 2];   
+  }
+  
+  for(std::size_t j = 0; j < idx/3; j++) {
+    matrix[3*j + 2] /= max; 
+  }
+  
+  
+}
+
 bool LevelDB::check_difference(std::vector<double> state, std::vector<double> state2) {
   bool difference = false;
   for(uint i = 0; i< state.size(); i++) {

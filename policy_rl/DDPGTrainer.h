@@ -42,7 +42,58 @@ class Critic : public torch::nn::Module {
     torch::nn::Linear linear1{nullptr};
     torch::nn::Linear fc1{nullptr}, fc2{nullptr};
     torch::nn::BatchNorm2d bn1{nullptr};
-};  
+}; 
+
+
+//class GCN(nn.Module):
+//    def __init__(self, nfeat, nhid, nclass, dropout):
+//        super(GCN, self).__init__()
+//
+//        self.gc1 = GraphConvolution(nfeat, nhid)
+//        self.gc2 = GraphConvolution(nhid, nclass)
+//        self.dropout = dropout
+//
+//    def forward(self, x, adj):
+//        x = F.relu(self.gc1(x, adj))
+//        x = F.dropout(x, self.dropout, training=self.training)
+//        x = self.gc2(x, adj)
+//        return F.log_softmax(x, dim=1)
+
+class GraphConvolution {
+  public:
+    GraphConvolution(int64_t in_features, int64_t out_features) {
+      weight = register_parameter("weight", torch::randn({in_features, out_features}));
+    }
+    torch::Tensor forward(torch::Tensor input, torch::Tensor adj) {
+      torch::Tensor support = torch::mm(input, weight);
+      torch::Tensor output = torch::mm(adj, support);
+      return output;
+    }
+    torch::Tensor weight;
+};
+
+class GraphActor : public torch::nn::Module {
+  public:
+    GraphActor(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
+    torch::Tensor forward(torch::Tensor state);
+
+  private:
+    GraphConvolution* gc1;
+    GraphConvolution* gc2;
+    torch::nn::Linear linear1{nullptr}, output{nullptr};
+};
+
+class GraphCritic : public torch::nn::Module {
+  public:
+    GraphCritic(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
+    torch::Tensor forward(torch::Tensor x, torch::Tensor action);
+
+  private:
+    GraphConvolution* gc1;
+    GraphConvolution* gc2;
+    torch::nn::Linear linear1{nullptr};
+    torch::nn::Linear fc1{nullptr}, fc2{nullptr};
+}; 
 
 class DDPGTrainer : public Trainer {
   public:
