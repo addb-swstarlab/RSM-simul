@@ -44,28 +44,14 @@ class Critic : public torch::nn::Module {
     torch::nn::BatchNorm2d bn1{nullptr};
 }; 
 
-
-//class GCN(nn.Module):
-//    def __init__(self, nfeat, nhid, nclass, dropout):
-//        super(GCN, self).__init__()
-//
-//        self.gc1 = GraphConvolution(nfeat, nhid)
-//        self.gc2 = GraphConvolution(nhid, nclass)
-//        self.dropout = dropout
-//
-//    def forward(self, x, adj):
-//        x = F.relu(self.gc1(x, adj))
-//        x = F.dropout(x, self.dropout, training=self.training)
-//        x = self.gc2(x, adj)
-//        return F.log_softmax(x, dim=1)
-
-class GraphConvolution {
+class GraphConvolution : public torch::nn::Module {
   public:
-    GraphConvolution(int64_t in_features, int64_t out_features) {
+    GraphConvolution(int64_t in_features, int64_t out_features) : torch::nn::Module() {
       weight = register_parameter("weight", torch::randn({in_features, out_features}));
     }
-    torch::Tensor forward(torch::Tensor input, torch::Tensor adj) {
-      torch::Tensor support = torch::mm(input, weight);
+    
+    torch::Tensor forward(torch::Tensor feature, torch::Tensor adj) {
+      torch::Tensor support = torch::mm(feature, weight);
       torch::Tensor output = torch::mm(adj, support);
       return output;
     }
@@ -75,22 +61,22 @@ class GraphConvolution {
 class GraphActor : public torch::nn::Module {
   public:
     GraphActor(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
-    torch::Tensor forward(torch::Tensor state);
+    torch::Tensor forward(torch::Tensor feature, torch::Tensor adj);
 
   private:
-    GraphConvolution* gc1;
-    GraphConvolution* gc2;
+    std::shared_ptr<GraphConvolution> gc1;
+    std::shared_ptr<GraphConvolution> gc2;
     torch::nn::Linear linear1{nullptr}, output{nullptr};
 };
 
 class GraphCritic : public torch::nn::Module {
   public:
     GraphCritic(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
-    torch::Tensor forward(torch::Tensor x, torch::Tensor action);
+    torch::Tensor forward(torch::Tensor feature, torch::Tensor adj, torch::Tensor action);
 
   private:
-    GraphConvolution* gc1;
-    GraphConvolution* gc2;
+    std::shared_ptr<GraphConvolution> gc1;
+    std::shared_ptr<GraphConvolution> gc2;
     torch::nn::Linear linear1{nullptr};
     torch::nn::Linear fc1{nullptr}, fc2{nullptr};
 }; 
@@ -104,17 +90,17 @@ class DDPGTrainer : public Trainer {
     
     OUNoise* noise;
     
-    std::shared_ptr<Actor> actor_local;
-    std::shared_ptr<Actor> actor_target;
+    std::shared_ptr<GraphActor> actor_local;
+    std::shared_ptr<GraphActor> actor_target;
     torch::optim::Adam actor_optimizer;
 
-    std::shared_ptr<Critic> critic_local;
-    std::shared_ptr<Critic> critic_target;
+    std::shared_ptr<GraphCritic> critic_local;
+    std::shared_ptr<GraphCritic> critic_target;
     torch::optim::Adam critic_optimizer;
     torch::Device device;
        
-  DDPGTrainer(int64_t channelSize, int64_t actionSize, int64_t capacity);
-  virtual std::vector<double> act(std::vector<double> state, bool add_noise);
+  DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t capacity);
+  virtual std::vector<float> act_graph(std::vector<uint32_t> adj_matrix, std::vector<float> feat_matrix, bool add_noise);
   void reset() {
     noise->reset();  
   }

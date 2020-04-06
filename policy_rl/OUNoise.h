@@ -10,8 +10,8 @@
 class OUNoise {
 private:
   size_t size;
-  std::vector<double> mu;
-  std::vector<double> state;
+  std::vector<float> mu;
+  std::vector<float> state;
   double theta=0.15;
   //double theta=0.3;
   double sigma=0.1;
@@ -19,7 +19,7 @@ private:
 public:
   OUNoise (size_t size_in) {
     size = size_in;
-    mu = std::vector<double>(size, 0);
+    mu = std::vector<float>(size, 0);
     srand((unsigned int)time(NULL));
     reset();
   }
@@ -28,7 +28,7 @@ public:
     state = mu;
   }
 
-  void sample(std::vector<double> &action) {
+  void sample(std::vector<float> &action) {
     for (size_t i = 0; i < state.size(); i++) {
       auto random = ((double) rand() / (double)RAND_MAX);
       float dx = theta * (mu[i] - state[i]) + sigma * random;

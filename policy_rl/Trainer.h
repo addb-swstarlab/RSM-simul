@@ -19,19 +19,19 @@ class Trainer {
     int64_t batch_size = 32;
     double gamma = 0.99;
     int64_t frame_id = 0;
-    std::vector<double> Action;
+    std::vector<float> Action;
     ExperienceReplay buffer;
     std::vector<double> PrevState;
     std::vector<double> PostState;
-    std::vector<double> actor_loss_;
-    std::vector<double> critic_loss_;
-    std::vector<double> rewards_;
+    std::vector<float> actor_loss_;
+    std::vector<float> critic_loss_;
+    std::vector<float> rewards_;
       
     Trainer(uint64_t capacity) : buffer(capacity){};
-    virtual ~Trainer(){}
-    virtual std::vector<double> act(std::vector<double> state, bool add_noise) {
-      std::cout << "Trainer act function" << std::endl;
-      return std::vector<double>();
+    virtual ~Trainer(){}   
+    virtual std::vector<float> act_graph(std::vector<uint32_t> adj, std::vector<float> feat, bool add_noise) {
+      std::cout << "Trainer act_graph function" << std::endl;
+      return std::vector<float>();
     }
     virtual void learn() {}
     virtual void saveCheckPoints() {};

@@ -44,9 +44,11 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(3,4,10240);  
+  RSMtrainer_ = new DDPGTrainer(10000, 1000, 1000, 3, 10240);  
   read_bytes_non_output_ = 0;
   write_bytes_ = 0;
+  adj_matrix.reserve(10000*10000);
+  feat_matrix.reserve(3*10000);
   srand(time(NULL));
 }
 
@@ -485,35 +487,24 @@ void LevelDB::set_state(std::vector<double> &state) {
   }
 }
 
-void link_vertex(std::vector<double> &matrix, int src, int dst) {
+void link_vertex(std::vector<uint32_t> &matrix, int src, int dst) {
   matrix[10000*src + dst] = 1;
   matrix[10000*dst + src] = 1;
 }
 
-void LevelDB::set_matrix(std::vector<double> &matrix) {   
+torch::Tensor LevelDB::set_matrix(std::vector<uint32_t> &matrix) {   
   matrix.clear(); 
   matrix.resize(10000*10000);
   
   std::vector<int> level_size;
   int prev_size = 0;
-  for (std::size_t i = 0; i < levels_.size; i++) {
+  for (std::size_t i = 0; i < levels_.size(); i++) {
     auto& level_tables = levels_[i];
     level_size.push_back(prev_size);
     prev_size += level_tables.size();
   }
-  
-  /* 3  --- 0
-     10 --- 1
-     25 --- 2
-  */
-  
-  /* 0 -- 0
-   * 3 -- 1
-   * 13 -- 2
-   * 38 -- 3    
-   */ 
     
-  for (std::size_t j = 0; j < levels_.size; j++) {
+  for (std::size_t j = 0; j < levels_.size(); j++) {
     auto& level_tables = levels_[j];
     int level_base_idx = level_size[j];
            
@@ -547,28 +538,27 @@ void LevelDB::set_matrix(std::vector<double> &matrix) {
         link_vertex(matrix, level_base_idx + k, level_base_idx + l);
     }    
   }
-  for (int i = 0; i < level_size.back(); i++) 
-   /* I matrix */
-  matrix[10000*i + i] = 1;
+  /* I matrix */
+  for (int i = 0; i < level_size.back(); i++) matrix[10000*i + i] = 1;
+  return torch::from_blob(matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kInt32));
 }
 
-void LevelDB::set_feature(std::vector<double> &matrix) {   
+torch::Tensor LevelDB::set_feature(std::vector<float> &matrix) {   
   matrix.clear(); 
   matrix.resize(3*10000);
   
-  uint64_t idx = 0;
-      
-  double max_value = 0;
-  max_value = log((double)params_.hint_num_unique_keys);
+  uint64_t idx = 0;      
+  float max_value = 0;
+  max_value = log((float)params_.hint_num_unique_keys);
     
   for(std::size_t i = 0; i < levels_.size(); i++) {
     auto& level_tables = levels_[i];
     for(std::size_t j = 0; j < level_tables.size(); j++) {
       auto& sstable = *level_tables[j];
 
-      matrix[idx++] = (double)sstable.front().key / max_value;
-      matrix[idx++] = (double)sstable.back().key / max_value;
-      matrix[idx++] = (double)sstable.size();
+      matrix[idx++] = (float)sstable.front().key / max_value;
+      matrix[idx++] = (float)sstable.back().key / max_value;
+      matrix[idx++] = (float)sstable.size();
     }
   }
   
@@ -578,11 +568,10 @@ void LevelDB::set_feature(std::vector<double> &matrix) {
       max = matrix[3*j + 2];   
   }
   
-  for(std::size_t j = 0; j < idx/3; j++) {
+  for(std::size_t j = 0; j < idx/3; j++)
     matrix[3*j + 2] /= max; 
-  }
   
-  
+  return torch::from_blob(matrix.data(), {1, 10000, 3}, torch::dtype(torch::kFloat));
 }
 
 bool LevelDB::check_difference(std::vector<double> state, std::vector<double> state2) {
@@ -599,58 +588,11 @@ bool LevelDB::check_difference(std::vector<double> state, std::vector<double> st
 std::size_t LevelDB::select_action(std::size_t level) {
   auto& level_tables = levels_[level];
   std::size_t count = level_tables.size();
-  std::size_t selected = 0;
-  double min = 0;
-  double max = 0;
-  auto& first_table = *level_tables[0];
-  auto& last_table = *level_tables[count-1];
-  double minimum_key = (double) first_table.front().key;
-  double maximum_key = (double) last_table.back().key;
-  double value = RSMtrainer_->Action.at(level-1) * (maximum_key - minimum_key);
-  value += minimum_key;
-  
-  for (std::size_t i = 0; i < count; i++) {
-    auto& sstable = *level_tables[i];
-   
-    min = (double)sstable.front().key ;  
-    max = (double)sstable.back().key;
-    
-    if(min <= value) {
-      if(value <= max) {
-        selected = i;
-        break;
-      }
-    } else { // min > value
-      auto& victim_table = *level_tables[i-1];
-//      if(compaction_id_ % 1000 == 0) {
-//              std::cout << std::setprecision(8);
-//              std::cout << "TARGET : "<< i-1 << " and " << i <<std::endl;
-//              std::cout<< "victim = " << victim_table.back().key 
-//              << " && sst = " << sstable.front().key << std::endl;
-//              std::cout << "difference : " << value - (double)victim_table.back().key
-//              << " and " << (double)sstable.front().key - value << std::endl;
-//              std::cout << "size = " << victim_table.size() << " and " << sstable.size() << std::endl;
-//      }
-      if ((value - (double)victim_table.back().key)
-            > ((double)sstable.front().key - value)) {
-        selected = i;
-        break;
-      } else {
-        selected = i-1;
-        break;
-      }
-    }
-  }
+  std::size_t selected = (int) (RSMtrainer_->Action.at(level-1) * count); 
   
   if(compaction_id_ % 1000 == 0) {
     std::cout << std::setprecision(32);
-    std::cout << "minKey = " << minimum_key << std::endl;
-    std::cout << "maxKey = " << maximum_key <<  std::endl;
-    std::cout << "Action [" << 0 << "] : " << (double) (RSMtrainer_->Action.at(level-1)) << std::endl;
-    std::cout << "Value = " << value <<std::endl;
-    auto &view_table = *level_tables[selected];
-    std::cout << "target min = " << view_table.front().key << 
-            " target max = " << view_table.back().key << std::endl;
+    std::cout << "Action [" << level-1 << "] : " << (float) (RSMtrainer_->Action.at(level-1)) << std::endl;
     std::cout << "count = " << count << " selected = " << selected <<std::endl; 
   }
   return selected;
@@ -679,7 +621,9 @@ void LevelDB::check_compaction(std::size_t level) {
 
       while (level_bytes_[level] > level_bytes_threshold_[level]) {
         sstable_indices.back().clear();
-
+        torch::Tensor prev_adj_tensor;
+        torch::Tensor prev_feat_tensor;
+        
         if (params_.compaction_mode == LevelDBCompactionMode::kLinear ||
             params_.compaction_mode ==
                 LevelDBCompactionMode::kLinearNextFirst) {
@@ -839,31 +783,22 @@ void LevelDB::check_compaction(std::size_t level) {
         } else if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMTrain ||
                    params_.compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {        
-          set_state(RSMtrainer_->PrevState); // input state         
-          if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
-            if(compaction_id_ < 2048) {
-              RSMtrainer_->Action.clear();
-              for(uint i = 0; i < action_size; i++)
-                RSMtrainer_->Action.push_back((double)rand()/(double)RAND_MAX);
-            } else
-              RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, true);                
-          } else
-            RSMtrainer_->Action = RSMtrainer_->act(RSMtrainer_->PrevState, false);
+          //set_state(RSMtrainer_->PrevState); // input state      
+          prev_adj_tensor = set_matrix(adj_matrix);
+          prev_feat_tensor = set_feature(feat_matrix);
+          if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
+            RSMtrainer_->Action = RSMtrainer_->act_graph(adj_matrix, feat_matrix, true);                
+          else
+            RSMtrainer_->Action = RSMtrainer_->act_graph(adj_matrix, feat_matrix, false);
           
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected);           
- //          RSMtrainer_->Action.clear();
-//          //std::cout << "rand = " << (double)rand()/(double)RAND_MAX <<std::endl;
-//          RSMtrainer_->Action.push_back((double)rand()/(double)RAND_MAX);
-//          std::cout << "action " << RSMtrainer_->Action[0] << std::endl;
-//          auto& level_tables = levels_[level];
-//          std::size_t count = level_tables.size();
-//          std::random_device rd;
-//          std::mt19937 random(rd());
-//          std::uniform_int_distribution<uint> range(0, count - 1);
-//          std::size_t selected = range(random);
-//          //std::size_t selected = count/2;
-//          sstable_indices.back().push_back(selected); 
+
+          /* Random Action Code for copy/paste */
+//          RSMtrainer_->Action.clear();
+//          for(uint i = 0; i < action_size; i++) {
+//            RSMtrainer_->Action.push_back((double)rand()/(double)RAND_MAX);
+//          } 
         }             
         else
           assert(false);
@@ -879,55 +814,24 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_id_++;
           std::cout << std::setprecision(32);
           if((compaction_id_-1) % 1000 == 0) {
-            for(int i = 0; i < 4; i++) {
-              std::cout << "level = " << i+1 << " number = " << compaction_number[i] << std::endl;    
-            }
             std::cout << "insert = " << inserts_ << std::endl;
             std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
-            std::cout << "read = " << (double) read_bytes_non_output_ << " write = " << (double) write_bytes_ <<std::endl;
-            std::cout << "Reward = " << ((double) read_bytes_non_output_/(double) write_bytes_) <<std::endl;
-            //std::cout << "Reward = " << (((double)write_bytes_ )* -1 /(double)read_bytes_non_output_)/100 <<std::endl;
+            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
+            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
           }
           
-          std::vector<double> Reward;
-//          (((double)write_bytes_ )* -1 /(double)read_bytes_non_output_)/100
-          double waf = (double) read_bytes_non_output_ / (double) write_bytes_;
-          waf == 1 ? 1 : waf * 3;         
+          std::vector<float> Reward;
+          float waf = (float) read_bytes_non_output_ / (float) write_bytes_;
+          //waf == 1 ? 1 : waf * 3;         
           Reward.push_back(waf); // 1/WAF
 //          Reward.push_back((((double)write_bytes_ )* -1 /(double)read_bytes_non_output_)/100);
-          set_state(RSMtrainer_->PostState);
-
-//          
-//          std::cout << "============Post===========" << std::endl;
-//          for(unsigned int l = 0; l < channel_size; l++) {
-//            if (l == 0 ){
-//              std::cout << "[MIN]" << std::endl;          
-//            } else if (l == 1) {
-//              std::cout << "[MAX]" << std::endl;     
-//            } else {
-//              std::cout << "[HISTOGRAM]" << std::endl;     
-//            }
-//
-//            for(unsigned int i = 1; i < 5; i++) {
-//              std::cout << "[level : " << i << "]" << std::endl;
-//              for(unsigned int k = 0; k < bucket_size; k++) {
-//                if(RSMtrainer_->PrevState[bucket_size*level_size*l + bucket_size*(i-1) + k] != 0)
-//                  std::cout << "[" <<k <<"] : " << RSMtrainer_->PrevState[bucket_size*level_size*l + bucket_size*(i-1) + k] << " "; 
-//              }
-//              std::cout << std::endl;
-//            }
-//          }
-          
-          if(check_difference(RSMtrainer_->PrevState, RSMtrainer_->PostState) == false) {
-            std::cout << "no difference" <<std::endl;
-          }
-          
+                  
           if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
             torch::Device device(torch::kCPU);
-            torch::Tensor state_tensor = torch::from_blob(RSMtrainer_->PrevState.data(), {1, channel_size, level_size, bucket_size}, torch::dtype(torch::kDouble)).to(device);
-            torch::Tensor new_state_tensor = torch::from_blob(RSMtrainer_->PostState.data(), {1, channel_size, level_size, bucket_size}, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor post_adj_tensor = set_matrix(adj_matrix).to(device);
+            torch::Tensor post_feat_tensor = set_feature(feat_matrix).to(device);  
       
-            std::vector<double> tempAction;
+            std::vector<float> tempAction;
             if( RSMtrainer_->Action.size() == 0 ) {
               std::cout << "not here" <<std::endl;
               for(int i = 0; i < action_size; i++) tempAction.push_back(0); // we does not consider level = 0;
@@ -935,10 +839,11 @@ void LevelDB::check_compaction(std::size_t level) {
               tempAction = RSMtrainer_->Action;
             }
             
-            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kDouble)).to(device);
-            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kDouble)).to(device);
+            torch::Tensor action_tensor = torch::tensor(tempAction, torch::dtype(torch::kFloat)).to(device);
+            torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kFloat)).to(device);
 
-            RSMtrainer_->buffer.push(state_tensor, new_state_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
+            RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
+                    post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
 
             if(RSMtrainer_->buffer.size_buffer() >= 2048) {
               RSMtrainer_->learn();
