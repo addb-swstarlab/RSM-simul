@@ -16,7 +16,7 @@
 
 class Trainer {
   public:
-    int64_t batch_size = 32;
+    int64_t batch_size = 8;
     double gamma = 0.99;
     int64_t frame_id = 0;
     std::vector<float> Action;
@@ -29,7 +29,7 @@ class Trainer {
       
     Trainer(uint64_t capacity) : buffer(capacity){};
     virtual ~Trainer(){}   
-    virtual std::vector<float> act_graph(std::vector<uint32_t> adj, std::vector<float> feat, bool add_noise) {
+    virtual std::vector<float> act_graph(std::vector<float> feat, std::vector<float> adj, bool add_noise) {
       std::cout << "Trainer act_graph function" << std::endl;
       return std::vector<float>();
     }

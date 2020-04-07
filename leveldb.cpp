@@ -44,7 +44,7 @@ LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats)
 
   next_version_ = 0;
   compaction_id_ = 0;
-  RSMtrainer_ = new DDPGTrainer(10000, 1000, 1000, 3, 10240);  
+  RSMtrainer_ = new DDPGTrainer(3, 64, 16, 3, 10240);  
   read_bytes_non_output_ = 0;
   write_bytes_ = 0;
   adj_matrix.reserve(10000*10000);
@@ -332,48 +332,6 @@ void LevelDB::merge_sstables(const levels_t& sstable_runs, std::size_t level) {
   push_flush(state);
 }
 
-double nrd0(double x[], const int N) {
-  gsl_sort(x, 1, N);
-  double hi = gsl_stats_sd(x, 1, N);
-  double iqr = gsl_stats_quantile_from_sorted_data (x,1, N,0.75) - gsl_stats_quantile_from_sorted_data (x,1, N,0.25);
-  double lo = GSL_MIN(hi, iqr/1.34);
-  double bw = 0.9 * lo * pow(N,-0.2);
-  return(bw);
-}
-
-double GaussKernel(double x) { 
-  return exp(-(gsl_pow_2(x)/2))/(M_SQRT2*sqrt(M_PI)); 
-}
-
-double GaussCdf(double x) { 
-  double cdf = (1 + gsl_sf_erf(x/M_SQRT2))/2; 
-  return cdf;
-}
-
-double KernelDensity(double *samples, double obs, size_t n) {
-  size_t i;
-  double h = GSL_MAX(nrd0(samples, n), 1e-6);
-  double prob = 0;
-  for(i = 0; i < n; i++)
-  {
-    prob += GaussKernel((obs - samples[i])/h)/(n*h);
-  }
-  return prob;
-}
-
-double KernelCdf(double *samples, double obs, size_t n) {
-  size_t i;
-  //double h = GSL_MAX(nrd0(samples, n), 1e-6);
-  //std::cout << " h = " << h << std::endl;
-  double prob = 0;
-  for(i = 0; i < n; i++)
-  {
-//    prob += GaussCdf((obs - samples[i])/h)/(n*h);
-      prob += GaussCdf((obs - samples[i]))/(n);
-  }
-  return prob;
-}
-
 double get_time() {
   struct timeval tv_now;
   gettimeofday(&tv_now, NULL);
@@ -388,111 +346,12 @@ void LevelDB::set_initial() {
   }
 }
 
-void LevelDB::set_state(std::vector<double> &state) {
-  state.clear(); 
-  state.resize(49152);
-    
-    /* initialize input-output level state*/
-  for(unsigned int l = 0; l < channel_size; l++) {
-    for(unsigned int i = 1; i < 5; i++) {
-      for(unsigned int k = 0; k < bucket_size; k++) {
-        state[bucket_size*level_size*l + bucket_size*(i-1) + k] = 0;  
-      }
-    }
-  }
-    
-  double max_value = 0;
-  //for (int i = 0; i < 8; i++) max_value += (255 * pow(256, i));
-  max_value = log((double)params_.hint_num_unique_keys);
-    
-  for(unsigned int i = 1; i < 5; i++) {
-    if(i > levels_.size() - 1) break;
-    
-    auto& level_tables = levels_[i];
-    std::size_t count = level_tables.size();
-    auto& first_table = *level_tables[0];
-    auto& last_table = *level_tables[count-1];
-    
-    double minimum_key_level = (double) first_table.front().key;
-    double maximum_key_level = (double)last_table.back().key;
-    uint64_t key_range = maximum_key_level - minimum_key_level;  
-    //std::cout << "minimum key level : " << minimum_key_level << " maximum key level : " << maximum_key_level << " key range : " << key_range << std::endl;
-    
-    double previous = minimum_key_level;
-    if(key_range < bucket_size) break;
-    
-    uint64_t quo = key_range / bucket_size;
-    uint64_t remain = key_range % bucket_size;
-    
-    unsigned int idx = 0;
-    /* min <--> max range */
-    for(unsigned int k = 0; k < bucket_size; k++) {
-      uint64_t add_quo = quo;
-      if (k < remain) {
-        add_quo++;
-      }
-      
-      state[bucket_size*level_size*0 + bucket_size*(i-1) + k] = log(previous)/max_value;  
-
-      if(previous == 0) 
-        state[bucket_size*level_size*0 + bucket_size*(i-1) + k] = 0;
-      state[bucket_size*level_size*1 + bucket_size*(i-1) + k] = log((double)(previous + add_quo))/max_value;
-//      state[bucket_size*level_size*0 + bucket_size*(i-1) + k] = previous;  
-//      state[bucket_size*level_size*1 + bucket_size*(i-1) + k] = (double)(previous + add_quo);   
-      
-      bool end = false;
-      uint64_t entry_num = 0;
-
-      for(unsigned int j = idx; j < count; j++) {
-        std::vector<LevelDBItem> sst = *level_tables[j];
-        double minimum_key_file = (double) sst.front().key;
-        double maximum_key_file = (double) sst.back().key;
-        
-        
-        if (minimum_key_file < previous && maximum_key_file > previous) {
-          entry_num += (int)(sst.size() * (maximum_key_file - previous)/(maximum_key_file - minimum_key_file));    
-        } else if (minimum_key_file >= previous && maximum_key_file <= previous + add_quo) {
-          entry_num += sst.size();  
-        } else if (minimum_key_file < previous + add_quo && maximum_key_file > previous + add_quo) {
-          entry_num += (int)(sst.size() * (previous + add_quo - minimum_key_file) / (maximum_key_file - minimum_key_file)); 
-          end = true;
-        } else if (minimum_key_file >= previous + add_quo) {
-          end = true;
-        }
-       
-        if(end) {
-          idx = j;
-          break;
-        }
-       }
-       //std::cout << "entry num = " << entry_num <<std::endl;
-       state[bucket_size*level_size*2 + bucket_size*(i-1) + k] = (double)entry_num;
-       previous += add_quo; 
-    } 
-       
-    double max = 0;
-    for(unsigned int k = 0; k < bucket_size; k++) {
-      if(max < state[bucket_size*level_size*2 + bucket_size*(i-1) + k])
-        max = state[bucket_size*level_size*2 + bucket_size*(i-1) + k];
-    }
-    
-//    double sum = 0;
-//    for(unsigned int k = 0; k < bucket_size; k++) {
-//      sum += state[bucket_size*level_size*2 + bucket_size*(i-1) + k];
-//    }
-
-    for(unsigned int k = 0; k < bucket_size; k++) {
-      state[bucket_size*level_size*2 + bucket_size*(i-1) + k] /= max;
-    }
-  }
-}
-
-void link_vertex(std::vector<uint32_t> &matrix, int src, int dst) {
+void link_vertex(std::vector<float> &matrix, int src, int dst) {
   matrix[10000*src + dst] = 1;
   matrix[10000*dst + src] = 1;
 }
 
-torch::Tensor LevelDB::set_matrix(std::vector<uint32_t> &matrix) {   
+torch::Tensor LevelDB::set_matrix(std::vector<float> &matrix) {   
   matrix.clear(); 
   matrix.resize(10000*10000);
   
@@ -540,7 +399,8 @@ torch::Tensor LevelDB::set_matrix(std::vector<uint32_t> &matrix) {
   }
   /* I matrix */
   for (int i = 0; i < level_size.back(); i++) matrix[10000*i + i] = 1;
-  return torch::from_blob(matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kInt32));
+
+  return torch::from_blob(matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kFloat));
 }
 
 torch::Tensor LevelDB::set_feature(std::vector<float> &matrix) {   
@@ -587,14 +447,14 @@ bool LevelDB::check_difference(std::vector<double> state, std::vector<double> st
 
 std::size_t LevelDB::select_action(std::size_t level) {
   auto& level_tables = levels_[level];
-  std::size_t count = level_tables.size();
+  std::size_t count = level_tables.size() - 1;
   std::size_t selected = (int) (RSMtrainer_->Action.at(level-1) * count); 
   
-  if(compaction_id_ % 1000 == 0) {
+//  if(compaction_id_ % 1000 == 0) {
     std::cout << std::setprecision(32);
     std::cout << "Action [" << level-1 << "] : " << (float) (RSMtrainer_->Action.at(level-1)) << std::endl;
     std::cout << "count = " << count << " selected = " << selected <<std::endl; 
-  }
+//  }
   return selected;
 }
 
@@ -783,13 +643,15 @@ void LevelDB::check_compaction(std::size_t level) {
         } else if (params_.compaction_mode ==
                    LevelDBCompactionMode::kRSMTrain ||
                    params_.compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {        
-          //set_state(RSMtrainer_->PrevState); // input state      
+          //set_state(RSMtrainer_->PrevState); // input state     
+
           prev_adj_tensor = set_matrix(adj_matrix);
-          prev_feat_tensor = set_feature(feat_matrix);
+          prev_feat_tensor = set_feature(feat_matrix);        
+
           if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
-            RSMtrainer_->Action = RSMtrainer_->act_graph(adj_matrix, feat_matrix, true);                
+            RSMtrainer_->Action = RSMtrainer_->act_graph(feat_matrix, adj_matrix, true);                
           else
-            RSMtrainer_->Action = RSMtrainer_->act_graph(adj_matrix, feat_matrix, false);
+            RSMtrainer_->Action = RSMtrainer_->act_graph(feat_matrix, adj_matrix, false);
           
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected);           
@@ -810,27 +672,28 @@ void LevelDB::check_compaction(std::size_t level) {
         
         if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain ||
             params_.compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {
+
           compaction_number[level-1]++;
           compaction_id_++;
           std::cout << std::setprecision(32);
-          if((compaction_id_-1) % 1000 == 0) {
+          if((compaction_id_-1) % 100 == 0) {
             std::cout << "insert = " << inserts_ << std::endl;
             std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
             std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
             std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
           }
-          
+
           std::vector<float> Reward;
           float waf = (float) read_bytes_non_output_ / (float) write_bytes_;
           //waf == 1 ? 1 : waf * 3;         
           Reward.push_back(waf); // 1/WAF
 //          Reward.push_back((((double)write_bytes_ )* -1 /(double)read_bytes_non_output_)/100);
-                  
           if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
+
             torch::Device device(torch::kCPU);
             torch::Tensor post_adj_tensor = set_matrix(adj_matrix).to(device);
             torch::Tensor post_feat_tensor = set_feature(feat_matrix).to(device);  
-      
+
             std::vector<float> tempAction;
             if( RSMtrainer_->Action.size() == 0 ) {
               std::cout << "not here" <<std::endl;
@@ -844,8 +707,8 @@ void LevelDB::check_compaction(std::size_t level) {
 
             RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
                     post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
-
-            if(RSMtrainer_->buffer.size_buffer() >= 2048) {
+            
+            if(RSMtrainer_->buffer.size_buffer() >= 256) {
               RSMtrainer_->learn();
             }
            

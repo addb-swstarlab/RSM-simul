@@ -51,8 +51,8 @@ class GraphConvolution : public torch::nn::Module {
     }
     
     torch::Tensor forward(torch::Tensor feature, torch::Tensor adj) {
-      torch::Tensor support = torch::mm(feature, weight);
-      torch::Tensor output = torch::mm(adj, support);
+      torch::Tensor support = torch::matmul(feature, weight);
+      torch::Tensor output = torch::matmul(adj, support);
       return output;
     }
     torch::Tensor weight;
@@ -100,7 +100,7 @@ class DDPGTrainer : public Trainer {
     torch::Device device;
        
   DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t capacity);
-  virtual std::vector<float> act_graph(std::vector<uint32_t> adj_matrix, std::vector<float> feat_matrix, bool add_noise);
+  virtual std::vector<float> act_graph(std::vector<float> feat_matrix, std::vector<float> adj_matrix, bool add_noise);
   void reset() {
     noise->reset();  
   }

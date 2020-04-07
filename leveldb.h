@@ -168,10 +168,8 @@ class LevelDB {
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
 
   void set_initial();
-  //void set_state(bool input);
-  void set_state(std::vector<double> &state);
   
-  torch::Tensor set_matrix(std::vector<uint32_t> &matrix);
+  torch::Tensor set_matrix(std::vector<float> &matrix);
   
   torch::Tensor set_feature(std::vector<float> &matrix);
   
@@ -246,7 +244,7 @@ class LevelDB {
   int64_t action_size = 4;
   int64_t bucket_size = 4096;
   std::vector<uint64_t> compaction_number;
-  std::vector<uint32_t> adj_matrix;
+  std::vector<float> adj_matrix;
   std::vector<float> feat_matrix;
   
 };
