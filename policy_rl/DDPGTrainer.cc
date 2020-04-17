@@ -7,60 +7,6 @@
 #include <sys/stat.h>
 #include "DDPGTrainer.h"
 
-/* Actor */
-Actor::Actor(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 32}).stride({1, 8})));
-  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
- // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
-  //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2*508, 64));
-  output = register_module("output", torch::nn::Linear(64, action_size));
-  bn1 = register_module("bn1", torch::nn::BatchNorm2d(32));
-}
-
-torch::Tensor Actor::forward(torch::Tensor input) {
-  //input = torch::relu(bn1(conv1(input)));
-  input = torch::relu(conv1(input));
-  input = torch::relu(conv2(input));
-//  input = torch::relu(conv3(input));
-
-  input = input.view({input.size(0), -1});
-  input = torch::relu(linear1(input));
-  input = output(input);
-  input = torch::sigmoid(input);
-  //input = torch::tanh(input);
-
-  return input;
-}
-
-/* Critic */
-Critic::Critic(int64_t channelSize, int64_t action_size) : torch::nn::Module() {
-  conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(channelSize, 32, {2, 32}).stride({1, 8})));
-  conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 2}).stride({1, 1})));
- // conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, {2, 256}).stride(1)));
-  //linear1 = register_module("linear1", torch::nn::Linear(64*2*254, 64));
-  linear1 = register_module("linear1", torch::nn::Linear(64*2*508, 64));
-  
-  fc1 = register_module("fc1", torch::nn::Linear(64 + action_size, 32));
-  fc2 = register_module("fc2", torch::nn::Linear(32, action_size));
-  bn1 = register_module("bn1", torch::nn::BatchNorm2d(32));
-}
-
-torch::Tensor Critic::forward(torch::Tensor input, torch::Tensor action) {
-  //input = torch::relu(bn1(conv1(input)));
-  input = torch::relu(conv1(input));
-  input = torch::relu(conv2(input));
- // input = torch::relu(conv3(input));
-
-  input = input.view({input.size(0), -1});
-  input = torch::relu(linear1(input));
-  
-  auto x = torch::cat({input, action}, 1);
-  x = torch::relu(fc1->forward(x));
-
-  return fc2->forward(x);
-}
-
 /* Graph Actor */
 GraphActor::GraphActor(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size)
   : gc1(std::make_shared<GraphConvolution>(n_feature, n_hidden)),
@@ -155,14 +101,14 @@ DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
     PostState.reserve(49152);
 }  
 
-std::vector<float> DDPGTrainer::act_graph(std::vector<float> feat_matrix, std::vector<float> adj_matrix, bool add_noise) {
-  torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, 10000, 3}, torch::dtype(torch::kFloat)).to(device);
-  torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kFloat)).to(device);
+std::vector<float> DDPGTrainer::act_graph(torch::Tensor prev_adj_tensor, torch::Tensor prev_feat_tensor, bool add_noise) {
+//  torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, 10000, 3}, torch::dtype(torch::kFloat)).to(device);
+//  torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kFloat)).to(device);
 
   actor_local->eval();
 
   torch::NoGradGuard guard;
-  torch::Tensor action = actor_local->forward(feat_tensor, adj_tensor).to(torch::kCPU);
+  torch::Tensor action = actor_local->forward(prev_feat_tensor, prev_adj_tensor).to(torch::kCPU);
 
   actor_local->train();
 
@@ -222,6 +168,7 @@ void DDPGTrainer::learn() {
 
   auto actions_pred = actor_local->forward(prev_feat_tensors, prev_adj_tensors);
   auto actor_loss = -critic_local->forward(prev_feat_tensors, prev_adj_tensors, actions_pred).mean();
+
   actor_loss_.push_back(actor_loss.to(torch::kCPU).item<float>());
   //std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU).item<double>() << std::endl;
 

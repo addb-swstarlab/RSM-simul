@@ -29,7 +29,7 @@ class Trainer {
       
     Trainer(uint64_t capacity) : buffer(capacity){};
     virtual ~Trainer(){}   
-    virtual std::vector<float> act_graph(std::vector<float> feat, std::vector<float> adj, bool add_noise) {
+    virtual std::vector<float> act_graph(torch::Tensor prev_adj_tensor, torch::Tensor prev_feat_tensor, bool add_noise) {
       std::cout << "Trainer act_graph function" << std::endl;
       return std::vector<float>();
     }

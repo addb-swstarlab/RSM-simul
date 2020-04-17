@@ -18,32 +18,6 @@
 #include "OUNoise.h"
 #include <Trainer.h>
 
-class Actor : public torch::nn::Module {
-  public:
-    Actor(int64_t channelSize, int64_t action_size);
-    torch::Tensor forward(torch::Tensor state);
-
-  private:
-//    torch::nn::Conv2d conv1{nullptr}, conv2{nullptr}, conv3{nullptr};
-    torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
-    torch::nn::Linear linear1{nullptr}, output{nullptr};
-    torch::nn::BatchNorm2d bn1{nullptr};
-};
-
-class Critic : public torch::nn::Module {
-  public:
-    Critic(int64_t channelSize, int64_t action_size);
-    torch::Tensor forward(torch::Tensor x, torch::Tensor action);
-
-  private:
-//    torch::nn::Conv1d conv1{nullptr}, conv2{nullptr};
-//    torch::nn::Conv2d conv1{nullptr}, conv2{nullptr}, conv3{nullptr};
-    torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
-    torch::nn::Linear linear1{nullptr};
-    torch::nn::Linear fc1{nullptr}, fc2{nullptr};
-    torch::nn::BatchNorm2d bn1{nullptr};
-}; 
-
 class GraphConvolution : public torch::nn::Module {
   public:
     GraphConvolution(int64_t in_features, int64_t out_features) : torch::nn::Module() {
@@ -100,7 +74,7 @@ class DDPGTrainer : public Trainer {
     torch::Device device;
        
   DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t capacity);
-  virtual std::vector<float> act_graph(std::vector<float> feat_matrix, std::vector<float> adj_matrix, bool add_noise);
+  virtual std::vector<float> act_graph(torch::Tensor prev_adj_tensor, torch::Tensor prev_feat_tensor, bool add_noise);
   void reset() {
     noise->reset();  
   }

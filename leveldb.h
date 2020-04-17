@@ -169,11 +169,13 @@ class LevelDB {
 
   void set_initial();
   
-  torch::Tensor set_matrix(std::vector<float> &matrix);
+  void up_propagate(std::size_t level);
   
-  torch::Tensor set_feature(std::vector<float> &matrix);
+  void down_propagate(std::size_t level);
+
+  torch::Tensor set_submatrix(std::size_t level, int* max_size);
   
-  bool check_difference(std::vector<double> state, std::vector<double> state2);
+  torch::Tensor set_subfeature(std::size_t level, std::size_t maximum_size);
   
   std::size_t select_action(std::size_t level);
   
@@ -241,10 +243,21 @@ class LevelDB {
   uint64_t write_bytes_;
   int64_t level_size = 4;
   int64_t channel_size = 3;
-  int64_t action_size = 4;
-  int64_t bucket_size = 4096;
+ 
   std::vector<uint64_t> compaction_number;
   std::vector<float> adj_matrix;
   std::vector<float> feat_matrix;
+  uint64_t num_victim = 10;
+  bool set_input = false;
+  torch::Tensor prev_adj_tensor;
+  torch::Tensor prev_feat_tensor;
+  
+  struct Fsize {
+    std::size_t comp; // compare
+    std::size_t curr_idx; // file idx
+    std::size_t start_idx;
+    std::size_t end_idx;
+  };
+  std::vector<std::vector<Fsize>> level_idx;
   
 };
