@@ -8,13 +8,13 @@
 #include "DDPGTrainer.h"
 
 /* Graph Actor */
-GraphActor::GraphActor(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size)
+GraphActor::GraphActor(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size)
   : gc1(std::make_shared<GraphConvolution>(n_feature, n_hidden)),
     gc2(std::make_shared<GraphConvolution>(n_hidden, n_output)) {
+  victim_size_ = victim_size;
   register_module("gc1", gc1);
   register_module("gc2", gc2);
-  linear1 = register_module("linear1", torch::nn::Linear(10000, 64));
-  output = register_module("output", torch::nn::Linear(64, action_size));
+  output = register_module("output", torch::nn::Linear(victim_size, action_size));
 }
 
 torch::Tensor GraphActor::forward(torch::Tensor feature, torch::Tensor adj) {
@@ -22,49 +22,45 @@ torch::Tensor GraphActor::forward(torch::Tensor feature, torch::Tensor adj) {
   input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
 
-  //input = input.view({input.size(0), -1});
   input = input.mean(2);
-  input = torch::relu(linear1(input));
-  input = output(input);
+  input = input.slice(1, 0, victim_size_);
+  std::cout << " here : " << input << std::endl;
+//  input = torch::relu(linear1(input));
+  input = torch::relu(output(input));
   input = torch::sigmoid(input);
-  //input = torch::tanh(input);
 
   return input;
 }
 
 /* Critic */
-GraphCritic::GraphCritic(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size) 
+GraphCritic::GraphCritic(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size) 
   : gc1(std::make_shared<GraphConvolution>(n_feature, n_hidden)),
     gc2(std::make_shared<GraphConvolution>(n_hidden, n_output)) {
+  victim_size_ = victim_size;
   register_module("gc1", gc1);
   register_module("gc2", gc2);
-  linear1 = register_module("linear1", torch::nn::Linear(10000, 64));  
-  fc1 = register_module("fc1", torch::nn::Linear(64 + action_size, 32));
-  fc2 = register_module("fc2", torch::nn::Linear(32, action_size));
+  output = register_module("output", torch::nn::Linear(victim_size + action_size, action_size));
 }
 
 torch::Tensor GraphCritic::forward(torch::Tensor feature, torch::Tensor adj, torch::Tensor action) {
   torch::Tensor input = torch::relu(gc1->forward(feature, adj));
   input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
-
-  //input = input.view({input.size(0), -1});
-   input = input.mean(2);
-  input = torch::relu(linear1(input));
+ 
+  input = input.mean(2);
+  input = input.slice(1, 0, victim_size_);
 
   auto x = torch::cat({input, action}, 1);
-  x = torch::relu(fc1->forward(x));
-
-  return fc2->forward(x);
+  return torch::relu(output->forward(x));
 }
 
-DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t capacity)
+DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size, int64_t capacity)
     : Trainer(capacity),
-      actor_local(std::make_shared<GraphActor>(n_feature, n_hidden, n_output, action_size)),
-      actor_target(std::make_shared<GraphActor>(n_feature, n_hidden, n_output, action_size)),
+      actor_local(std::make_shared<GraphActor>(n_feature, n_hidden, n_output, action_size, victim_size)),
+      actor_target(std::make_shared<GraphActor>(n_feature, n_hidden, n_output, action_size, victim_size)),
       actor_optimizer(actor_local->parameters(), lr_actor),
-      critic_local(std::make_shared<GraphCritic>(n_feature, n_hidden, n_output, action_size)),
-      critic_target(std::make_shared<GraphCritic>(n_feature, n_hidden, n_output, action_size)),
+      critic_local(std::make_shared<GraphCritic>(n_feature, n_hidden, n_output, action_size, victim_size)),
+      critic_target(std::make_shared<GraphCritic>(n_feature, n_hidden, n_output, action_size, victim_size)),
       critic_optimizer(critic_local->parameters(), lr_critic),
       device(torch::kCPU) {
  
@@ -101,14 +97,20 @@ DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
     PostState.reserve(49152);
 }  
 
-std::vector<float> DDPGTrainer::act_graph(torch::Tensor prev_adj_tensor, torch::Tensor prev_feat_tensor, bool add_noise) {
-//  torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, 10000, 3}, torch::dtype(torch::kFloat)).to(device);
-//  torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, 10000, 10000}, torch::dtype(torch::kFloat)).to(device);
+std::vector<float> DDPGTrainer::act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
+  torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, (long int) (feat_matrix.size()/3), 3}, torch::dtype(torch::kFloat)).to(device);
+  torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, (long int) (sqrt(adj_matrix.size())), 
+          (long int) (sqrt(adj_matrix.size()))}, torch::dtype(torch::kFloat)).to(device);
+//  prev_adj_tensor.to(torch::kCUDA);
+//  prev_feat_tensor.to(torch::kCUDA);
+//  std::cout << "device = " << prev_adj_tensor.device() << std::endl;
+//  std::cout << "device = " << prev_feat_tensor.device() << std::endl;
+
 
   actor_local->eval();
 
   torch::NoGradGuard guard;
-  torch::Tensor action = actor_local->forward(prev_feat_tensor, prev_adj_tensor).to(torch::kCPU);
+  torch::Tensor action = actor_local->forward(feat_tensor, adj_tensor).to(torch::kCPU);
 
   actor_local->train();
 
@@ -128,6 +130,7 @@ std::vector<float> DDPGTrainer::act_graph(torch::Tensor prev_adj_tensor, torch::
 
 void DDPGTrainer::learn() {
 
+  /* batch size = 1, required to consider batch computation */
   std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>> batch =
     buffer.sample_queue(batch_size);
 
@@ -146,6 +149,7 @@ void DDPGTrainer::learn() {
     actions.push_back(std::get<4>(i));
     rewards.push_back(std::get<5>(i));
   }
+  std::cout << "Tensor" << std::endl;
 
   torch::Tensor prev_adj_tensors = torch::cat(prev_adj_tensor, 0).to(device);
   torch::Tensor prev_feat_tensors = torch::cat(prev_feat_tensor, 0).to(device);
@@ -153,11 +157,22 @@ void DDPGTrainer::learn() {
   torch::Tensor post_feat_tensors = torch::cat(post_feat_tensor, 0).to(device);
   torch::Tensor action_tensors = torch::cat(actions, 0).to(device);
   torch::Tensor reward_tensors = torch::cat(rewards, 0).to(device);
+  
+  std::cout << "[size list] : prev_adj_tensors : " << prev_adj_tensors.sizes()
+          << " prev_feat_tensors : " << prev_feat_tensors.sizes()
+          << " post_adj_tensors : " << post_adj_tensors.sizes()
+          << " post_feat_tensors : " << post_feat_tensors.sizes()
+          << " action_tensors : " << action_tensors.sizes()
+          << " reward_tensors : " << reward_tensors.sizes() << std::endl;
               
   auto actions_next = actor_target->forward(post_feat_tensors, post_adj_tensors);
+  std::cout << "action_next = " << actions_next.sizes() << std::endl;
   auto Q_targets_next = critic_target->forward(post_feat_tensors, post_adj_tensors, actions_next);
+  std::cout << "Q_targets_next = " << Q_targets_next.sizes() << std::endl;
   auto Q_targets = reward_tensors + (gamma * Q_targets_next);
+  std::cout << "Q_targets = " << Q_targets.sizes() << std::endl;
   auto Q_expected = critic_local->forward(prev_feat_tensors, prev_adj_tensors, action_tensors); 
+  std::cout << "Q_expected = " << Q_expected.sizes() << std::endl;
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
   critic_loss_.push_back(critic_loss.to(torch::kCPU).item<float>());

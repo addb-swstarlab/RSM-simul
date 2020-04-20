@@ -34,25 +34,26 @@ class GraphConvolution : public torch::nn::Module {
 
 class GraphActor : public torch::nn::Module {
   public:
-    GraphActor(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
+    GraphActor(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size);
     torch::Tensor forward(torch::Tensor feature, torch::Tensor adj);
 
   private:
+    int64_t victim_size_;
     std::shared_ptr<GraphConvolution> gc1;
     std::shared_ptr<GraphConvolution> gc2;
-    torch::nn::Linear linear1{nullptr}, output{nullptr};
+    torch::nn::Linear output{nullptr};
 };
 
 class GraphCritic : public torch::nn::Module {
   public:
-    GraphCritic(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size);
+    GraphCritic(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size);
     torch::Tensor forward(torch::Tensor feature, torch::Tensor adj, torch::Tensor action);
 
   private:
     std::shared_ptr<GraphConvolution> gc1;
     std::shared_ptr<GraphConvolution> gc2;
-    torch::nn::Linear linear1{nullptr};
-    torch::nn::Linear fc1{nullptr}, fc2{nullptr};
+    int64_t victim_size_;
+    torch::nn::Linear output{nullptr};
 }; 
 
 class DDPGTrainer : public Trainer {
@@ -73,8 +74,8 @@ class DDPGTrainer : public Trainer {
     torch::optim::Adam critic_optimizer;
     torch::Device device;
        
-  DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t capacity);
-  virtual std::vector<float> act_graph(torch::Tensor prev_adj_tensor, torch::Tensor prev_feat_tensor, bool add_noise);
+  DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size, int64_t capacity);
+  virtual std::vector<float> act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise);
   void reset() {
     noise->reset();  
   }

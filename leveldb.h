@@ -247,7 +247,7 @@ class LevelDB {
   std::vector<uint64_t> compaction_number;
   std::vector<float> adj_matrix;
   std::vector<float> feat_matrix;
-  uint64_t num_victim = 10;
+  uint64_t num_victim = 5;
   bool set_input = false;
   torch::Tensor prev_adj_tensor;
   torch::Tensor prev_feat_tensor;
@@ -255,8 +255,10 @@ class LevelDB {
   struct Fsize {
     std::size_t comp; // compare
     std::size_t curr_idx; // file idx
-    std::size_t start_idx;
-    std::size_t end_idx;
+    std::size_t bot_start_idx;
+    std::size_t bot_end_idx;
+    std::size_t up_start_idx;
+    std::size_t up_end_idx;
   };
   std::vector<std::vector<Fsize>> level_idx;
   
