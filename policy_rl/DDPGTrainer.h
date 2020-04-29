@@ -14,7 +14,7 @@
 
 #include <torch/torch.h>
 #include <ExperienceReplay.h>
-
+#include <cmath>
 #include "OUNoise.h"
 #include <Trainer.h>
 
@@ -22,13 +22,27 @@ class GraphConvolution : public torch::nn::Module {
   public:
     GraphConvolution(int64_t in_features, int64_t out_features) : torch::nn::Module() {
       weight = register_parameter("weight", torch::randn({in_features, out_features}));
+      reset_parameters();
     }
     
     torch::Tensor forward(torch::Tensor feature, torch::Tensor adj) {
       torch::Tensor support = torch::matmul(feature, weight);
-      torch::Tensor output = torch::matmul(adj, support);
+      torch::Tensor normalize_adj = adj.squeeze().sum(1).squeeze();
+      normalize_adj = torch::pow(normalize_adj, -0.5);
+      normalize_adj = torch::diag(normalize_adj);
+      normalize_adj = normalize_adj.unsqueeze(0);
+      
+      torch::Tensor adj_final = torch::matmul(torch::matmul(normalize_adj, adj), normalize_adj);
+
+      torch::Tensor output = torch::matmul(adj_final, support);
       return output;
     }
+    
+    void reset_parameters() {
+      const auto bound = 1 / sqrt(weight.size(1));
+      torch::nn::init::uniform_(weight, -bound, bound); 
+    }
+    
     torch::Tensor weight;
 };
 
@@ -41,7 +55,7 @@ class GraphActor : public torch::nn::Module {
     int64_t victim_size_;
     std::shared_ptr<GraphConvolution> gc1;
     std::shared_ptr<GraphConvolution> gc2;
-    torch::nn::Linear output{nullptr};
+    torch::nn::Linear fc{nullptr}, output{nullptr};
 };
 
 class GraphCritic : public torch::nn::Module {
@@ -53,14 +67,14 @@ class GraphCritic : public torch::nn::Module {
     std::shared_ptr<GraphConvolution> gc1;
     std::shared_ptr<GraphConvolution> gc2;
     int64_t victim_size_;
-    torch::nn::Linear output{nullptr};
+    torch::nn::Linear fc{nullptr}, output{nullptr};
 }; 
 
 class DDPGTrainer : public Trainer {
   public:
     double tau = 1e-3;              // for soft update of target parameters
     double lr_actor = 1e-4;         // learning rate of the actor
-    double lr_critic = 1e-3;        // learning rate of the critic
+    double lr_critic = 1e-4;        // learning rate of the critic
     double weight_decay = 0;        // L2 weight decay
     
     OUNoise* noise;

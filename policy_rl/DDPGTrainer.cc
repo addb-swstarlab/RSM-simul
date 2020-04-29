@@ -14,20 +14,20 @@ GraphActor::GraphActor(int64_t n_feature, int64_t n_hidden, int64_t n_output, in
   victim_size_ = victim_size;
   register_module("gc1", gc1);
   register_module("gc2", gc2);
-  output = register_module("output", torch::nn::Linear(victim_size, action_size));
+  fc = register_module("fc", torch::nn::Linear(n_output*victim_size, n_output));
+  output = register_module("output", torch::nn::Linear(n_output, action_size));
 }
 
 torch::Tensor GraphActor::forward(torch::Tensor feature, torch::Tensor adj) {
   torch::Tensor input = torch::relu(gc1->forward(feature, adj));
-  input = torch::dropout(input, 0.3, is_training());
+  //input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
 
-  input = input.mean(2);
   input = input.slice(1, 0, victim_size_);
-  std::cout << " here : " << input << std::endl;
-//  input = torch::relu(linear1(input));
-  input = torch::relu(output(input));
-  input = torch::sigmoid(input);
+  input = input.view({input.size(0), -1});
+  input = torch::relu(fc(input));
+
+  input = torch::sigmoid(output(input));
 
   return input;
 }
@@ -39,19 +39,21 @@ GraphCritic::GraphCritic(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
   victim_size_ = victim_size;
   register_module("gc1", gc1);
   register_module("gc2", gc2);
-  output = register_module("output", torch::nn::Linear(victim_size + action_size, action_size));
+  fc = register_module("fc", torch::nn::Linear(n_output*victim_size + action_size, n_output));
+  output = register_module("output", torch::nn::Linear(n_output, action_size));
 }
 
 torch::Tensor GraphCritic::forward(torch::Tensor feature, torch::Tensor adj, torch::Tensor action) {
   torch::Tensor input = torch::relu(gc1->forward(feature, adj));
-  input = torch::dropout(input, 0.3, is_training());
+  //input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
- 
-  input = input.mean(2);
-  input = input.slice(1, 0, victim_size_);
+  
+  input = input.slice(1, 0, victim_size_); 
+  input = input.view({input.size(0), -1});
 
   auto x = torch::cat({input, action}, 1);
-  return torch::relu(output->forward(x));
+  x = torch::relu(fc->forward(x));
+  return output->forward(x);
 }
 
 DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size, int64_t capacity)
@@ -149,8 +151,7 @@ void DDPGTrainer::learn() {
     actions.push_back(std::get<4>(i));
     rewards.push_back(std::get<5>(i));
   }
-  std::cout << "Tensor" << std::endl;
-
+  
   torch::Tensor prev_adj_tensors = torch::cat(prev_adj_tensor, 0).to(device);
   torch::Tensor prev_feat_tensors = torch::cat(prev_feat_tensor, 0).to(device);
   torch::Tensor post_adj_tensors = torch::cat(post_adj_tensor, 0).to(device);
@@ -166,13 +167,13 @@ void DDPGTrainer::learn() {
           << " reward_tensors : " << reward_tensors.sizes() << std::endl;
               
   auto actions_next = actor_target->forward(post_feat_tensors, post_adj_tensors);
-  std::cout << "action_next = " << actions_next.sizes() << std::endl;
+  //std::cout << "action_next = " << actions_next << std::endl;
   auto Q_targets_next = critic_target->forward(post_feat_tensors, post_adj_tensors, actions_next);
-  std::cout << "Q_targets_next = " << Q_targets_next.sizes() << std::endl;
+  //std::cout << "Q_targets_next = " << Q_targets_next << std::endl;
   auto Q_targets = reward_tensors + (gamma * Q_targets_next);
-  std::cout << "Q_targets = " << Q_targets.sizes() << std::endl;
+  //std::cout << "Q_targets = " << Q_targets << std::endl;
   auto Q_expected = critic_local->forward(prev_feat_tensors, prev_adj_tensors, action_tensors); 
-  std::cout << "Q_expected = " << Q_expected.sizes() << std::endl;
+  //std::cout << "Q_expected = " << Q_expected << std::endl;
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
   critic_loss_.push_back(critic_loss.to(torch::kCPU).item<float>());
@@ -190,7 +191,7 @@ void DDPGTrainer::learn() {
   actor_optimizer.zero_grad();
   actor_loss.backward();
   actor_optimizer.step();
-
+    
   soft_update(critic_local, critic_target);
   soft_update(actor_local, actor_target); 
 }
