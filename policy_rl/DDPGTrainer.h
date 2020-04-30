@@ -28,12 +28,15 @@ class GraphConvolution : public torch::nn::Module {
     torch::Tensor forward(torch::Tensor feature, torch::Tensor adj) {
       torch::Tensor support = torch::matmul(feature, weight);
       torch::Tensor normalize_adj = adj.squeeze().sum(1).squeeze();
+//      std::cout << "This is = " << normalize_adj << std::endl;
+     
       normalize_adj = torch::pow(normalize_adj, -0.5);
       normalize_adj = torch::diag(normalize_adj);
-      normalize_adj = normalize_adj.unsqueeze(0);
+      normalize_adj = normalize_adj.unsqueeze(0); // [1, 37, 37]
       
       torch::Tensor adj_final = torch::matmul(torch::matmul(normalize_adj, adj), normalize_adj);
 
+//      std::cout << "adj_final = " << adj_final << std::endl;
       torch::Tensor output = torch::matmul(adj_final, support);
       return output;
     }

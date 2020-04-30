@@ -19,15 +19,23 @@ GraphActor::GraphActor(int64_t n_feature, int64_t n_hidden, int64_t n_output, in
 }
 
 torch::Tensor GraphActor::forward(torch::Tensor feature, torch::Tensor adj) {
+//  std::cout << "FEATURE : " << feature <<std::endl;
+//  std::cout << "ADJ : " << adj <<std::endl;
   torch::Tensor input = torch::relu(gc1->forward(feature, adj));
-  //input = torch::dropout(input, 0.3, is_training());
+  //std::cout << "INPUT 1 : " << input <<std::endl;
+  input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
+  //std::cout << "INPUT 2 : " << input <<std::endl;
 
   input = input.slice(1, 0, victim_size_);
+  //std::cout << "INPUT 3 : " << input <<std::endl;
   input = input.view({input.size(0), -1});
+  //std::cout << "INPUT 4 : " << input <<std::endl;
   input = torch::relu(fc(input));
+  //std::cout << "INPUT 5 : " << input <<std::endl;
 
   input = torch::sigmoid(output(input));
+  //std::cout << "INPUT 6 : " << input <<std::endl;
 
   return input;
 }
@@ -45,7 +53,7 @@ GraphCritic::GraphCritic(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
 
 torch::Tensor GraphCritic::forward(torch::Tensor feature, torch::Tensor adj, torch::Tensor action) {
   torch::Tensor input = torch::relu(gc1->forward(feature, adj));
-  //input = torch::dropout(input, 0.3, is_training());
+  input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
   
   input = input.slice(1, 0, victim_size_); 
@@ -89,12 +97,11 @@ DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
     critic_target->to(torch::kFloat);
 
     //critic_optimizer.options.weight_decay_ = weight_decay;
-    
+    loadCheckPoints();     
     hard_copy(actor_target, actor_local);
     hard_copy(critic_target, critic_local);
     noise = new OUNoise(static_cast<size_t>(action_size));
     
-    loadCheckPoints();   
     PrevState.reserve(49152);
     PostState.reserve(49152);
 }  
@@ -159,15 +166,24 @@ void DDPGTrainer::learn() {
   torch::Tensor action_tensors = torch::cat(actions, 0).to(device);
   torch::Tensor reward_tensors = torch::cat(rewards, 0).to(device);
   
-  std::cout << "[size list] : prev_adj_tensors : " << prev_adj_tensors.sizes()
-          << " prev_feat_tensors : " << prev_feat_tensors.sizes()
-          << " post_adj_tensors : " << post_adj_tensors.sizes()
-          << " post_feat_tensors : " << post_feat_tensors.sizes()
-          << " action_tensors : " << action_tensors.sizes()
-          << " reward_tensors : " << reward_tensors.sizes() << std::endl;
-              
+//  std::cout << "[size list] : prev_adj_tensors : " << prev_adj_tensors.sizes()
+//          << " prev_feat_tensors : " << prev_feat_tensors.sizes()
+//          << " post_adj_tensors : " << post_adj_tensors.sizes()
+//          << " post_feat_tensors : " << post_feat_tensors.sizes()
+//          << " action_tensors : " << action_tensors.sizes()
+//          << " reward_tensors : " << reward_tensors.sizes() << std::endl;
+
+//  std::cout << "[actor_local]" << std::endl;  
+//  for (size_t i = 0; i < actor_local->parameters().size(); i++) {
+//    std::cout << "[" << i << "]" << actor_local->parameters()[i] << std::endl;
+//  }
+//  std::cout << "[actor_target]" << std::endl;
+//  for (size_t i = 0; i < actor_target->parameters().size(); i++) {
+//    std::cout << "[" << i << "]" << actor_target->parameters()[i] << std::endl;
+//  }  
+//  
   auto actions_next = actor_target->forward(post_feat_tensors, post_adj_tensors);
-  //std::cout << "action_next = " << actions_next << std::endl;
+//  std::cout << "action_next = " << actions_next << std::endl;
   auto Q_targets_next = critic_target->forward(post_feat_tensors, post_adj_tensors, actions_next);
   //std::cout << "Q_targets_next = " << Q_targets_next << std::endl;
   auto Q_targets = reward_tensors + (gamma * Q_targets_next);
@@ -177,7 +193,7 @@ void DDPGTrainer::learn() {
 
   torch::Tensor critic_loss = torch::mse_loss(Q_expected, Q_targets.detach());
   critic_loss_.push_back(critic_loss.to(torch::kCPU).item<float>());
-  //std::cout << "CRITIC_LOSS = " << critic_loss.to(torch::kCPU).item<double>() << std::endl;
+//  std::cout << "CRITIC_LOSS = " << critic_loss.to(torch::kCPU).item<double>() << std::endl;
   critic_optimizer.zero_grad();
   critic_loss.backward();
   critic_optimizer.step();
@@ -186,12 +202,12 @@ void DDPGTrainer::learn() {
   auto actor_loss = -critic_local->forward(prev_feat_tensors, prev_adj_tensors, actions_pred).mean();
 
   actor_loss_.push_back(actor_loss.to(torch::kCPU).item<float>());
-  //std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU).item<double>() << std::endl;
+//  std::cout << "ACTOR_LOSS = " << actor_loss.to(torch::kCPU).item<double>() << std::endl;
 
   actor_optimizer.zero_grad();
   actor_loss.backward();
   actor_optimizer.step();
-    
+
   soft_update(critic_local, critic_target);
   soft_update(actor_local, actor_target); 
 }
@@ -204,8 +220,9 @@ void DDPGTrainer::soft_update(std::shared_ptr<torch::nn::Module> local, std::sha
 }
 
 void DDPGTrainer::hard_copy(std::shared_ptr<torch::nn::Module> local, std::shared_ptr<torch::nn::Module> target) {
+  torch::NoGradGuard no_grad;
   for (size_t i = 0; i < target->parameters().size(); i++) {
-    target->parameters()[i] = local->parameters()[i];
+    target->parameters()[i].copy_(local->parameters()[i]);
   }
 }
 

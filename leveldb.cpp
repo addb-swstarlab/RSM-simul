@@ -522,7 +522,7 @@ torch::Tensor LevelDB::set_submatrix(std::size_t level, int* max_size) {
       
       /* required to modify --> while */
       for(uint k = idx_next; k < level_idx[i-1].size(); k++) {
-        if(level_idx[i+1][k].curr_idx >= end_idx) {
+        if(level_idx[i-1][k].curr_idx >= end_idx) {
           idx_next = k;
           break;
         }
@@ -604,6 +604,7 @@ std::size_t LevelDB::select_action(std::size_t level) {
 
 void LevelDB::check_compaction(std::size_t level) {
   if (level == 0) {
+      std::cout << "level 0 " << std::endl;
     // Compact if we have too many level-0 SSTables.
     if (levels_[0].size() >= params_.level0_sstable_count_threshold) {
       level_overflows_[0]++;
@@ -788,6 +789,7 @@ void LevelDB::check_compaction(std::size_t level) {
           if(set_input) {
             /* case: input is set in previous step */
               
+            std::cout << "Next : " << level << std::endl;
             std::vector<float> Reward;
             float waf = (float) read_bytes_non_output_ / (float) write_bytes_;
             Reward.push_back(waf); // 1/WAF
@@ -797,8 +799,9 @@ void LevelDB::check_compaction(std::size_t level) {
             if (params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
               torch::Device device(torch::kCPU);
               int* max;
-              std::cout <<"output level = " << level <<std::endl;
+//              std::cout <<"output level = " << level <<std::endl;
 //              std::cout << "[POST] SET_SUBMATRIX [" << level << "] " << std::endl;
+              std::cout << "prev_adj 11 : " << prev_adj_tensor.squeeze().sum(1).sum(0) << std::endl;
               torch::Tensor post_adj_tensor = set_submatrix(level, max).to(device);
 //              std::cout << "[POST] SET_SUBFEATURE [" << level << "] & max : " << *max << std::endl;
               torch::Tensor post_feat_tensor = set_subfeature(level, *max).to(device);  
@@ -808,9 +811,11 @@ void LevelDB::check_compaction(std::size_t level) {
 //              std::cout << "[POST] REWARD" << std::endl;
               torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kFloat)).to(device);
 
+              std::cout << "prev_adj 22 : " << prev_adj_tensor.squeeze().sum(1).sum(0) << std::endl;
+//              std::cout << "post_adj : " << post_adj_tensor.squeeze().sum(1) << std::endl;
 //              std::cout << "[POST] BUFFER PUSH" << std::endl;
-              RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
-                      post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
+//              RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
+//                      post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
             
               if(RSMtrainer_->buffer.size_buffer() >= 1000) {
                 std::cout << "[POST] LEARN" << std::endl;
@@ -827,14 +832,16 @@ void LevelDB::check_compaction(std::size_t level) {
             set_input = false;
           }
           
+          std::cout << "First : " << level << std::endl;
           int* max;
 //          std::cout << "[PREV] SET_SUBMATRIX [" << level << "] " << std::endl;
 //          std::cout <<"input level = " << level <<std::endl;
-          prev_adj_tensor = set_submatrix(level, max);
-//          std::cout << "[PREV] SET_SUBFEATURE [" << level << "] & max : " << *max << std::endl;
-          prev_feat_tensor = set_subfeature(level, *max);       
+          prev_adj_tensor = set_submatrix(level,max).clone().detach();
+          prev_feat_tensor = set_subfeature(level, *max).clone().detach();
+
+//          std::cout << "[PREV] SET_SUBFEATURE [" << level << "] & max : " << *max << std::endl;   
 //          std::cout << "feat = " << prev_feat_tensor << std::endl;
-          
+          std::cout << "prev_adj : " << prev_adj_tensor.squeeze().sum(1).sum(0) << std::endl;
 //          std::cout << "[PREV] ACT_GRAPH" << std::endl;
           if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
             RSMtrainer_->Action = RSMtrainer_->act_graph(feat_matrix, adj_matrix, true); 
@@ -845,6 +852,7 @@ void LevelDB::check_compaction(std::size_t level) {
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected); 
           set_input = true;
+          std::cout << "nxt prev_adj : " << prev_adj_tensor.squeeze().sum(1).sum(0) << std::endl;
 
           /* Random Action Code for copy/paste */
 //          RSMtrainer_->Action.clear();
@@ -866,13 +874,13 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_number[level-1]++;
           compaction_id_++;
         
-          if(((compaction_id_-1) % 100 == 0)) {
-            std::cout << std::setprecision(32);
-            std::cout << "insert = " << inserts_ << std::endl;
-            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
-            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
-            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
-          }
+//          if(((compaction_id_-1) % 100 == 0)) {
+//            std::cout << std::setprecision(32);
+//            std::cout << "insert = " << inserts_ << std::endl;
+//            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
+//            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
+//            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
+//          }
         }
         
       }

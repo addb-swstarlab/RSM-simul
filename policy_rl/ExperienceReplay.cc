@@ -20,12 +20,12 @@ void ExperienceReplay::push(torch::Tensor prev_adj_tensor, torch::Tensor prev_fe
   std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
     sample (prev_adj_tensor, prev_feat_tensor, post_adj_tensor, post_feat_tensor, action, reward);
   if (buffer.size() < capacity) {
-    buffer.push_back(sample);
+    buffer.emplace_back(sample);
   } else {
     while (buffer.size() >= capacity) {
       buffer.pop_front();
     }
-    buffer.push_back(sample);
+    buffer.emplace_back(sample);
   }
 }
 
@@ -45,7 +45,7 @@ std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tenso
     uint idx = range(random);
     if ((find(indices.begin(), indices.end(), idx)) == indices.end()) {
       indices.push_back(idx);
-      b.push_back(buffer[idx]);
+      b.emplace_back(buffer[idx]);
       num_entries++;
     }    
   }
