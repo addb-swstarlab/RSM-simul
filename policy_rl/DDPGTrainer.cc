@@ -183,6 +183,7 @@ void DDPGTrainer::learn() {
 //  }  
 //  
   auto actions_next = actor_target->forward(post_feat_tensors, post_adj_tensors);
+//  std::cout << "actions_next = " << actions_next << std::endl;
   auto Q_targets_next = critic_target->forward(post_feat_tensors, post_adj_tensors, actions_next);
   //std::cout << "Q_targets_next = " << Q_targets_next << std::endl;
   auto Q_targets = reward_tensors + (gamma * Q_targets_next);

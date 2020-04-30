@@ -815,7 +815,6 @@ void LevelDB::check_compaction(std::size_t level) {
                       post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
             
               if(RSMtrainer_->buffer.size_buffer() >= 1000) {
-                std::cout << "[POST] LEARN" << std::endl;
                 RSMtrainer_->learn();
               }
            
@@ -868,13 +867,13 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_number[level-1]++;
           compaction_id_++;
         
-//          if(((compaction_id_-1) % 100 == 0)) {
-//            std::cout << std::setprecision(32);
-//            std::cout << "insert = " << inserts_ << std::endl;
-//            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
-//            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
-//            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
-//          }
+          if(((compaction_id_-1) % 100 == 0)) {
+            std::cout << std::setprecision(32);
+            std::cout << "insert = " << inserts_ << std::endl;
+            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
+            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
+            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
+          }
         }
         
       }
