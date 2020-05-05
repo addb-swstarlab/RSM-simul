@@ -2,6 +2,7 @@
 #include "util.h"
 #include "zipf.h"
 #include "leveldb.h"
+#include "policy_rl/Trainer.h"
 #include <sys/time.h>
 
 enum class ActiveKeyMode {
@@ -47,12 +48,12 @@ uint64_t get_usec() {
 }
 
 template <class StoreType>
-void test(const char* store_type_name, uint64_t num_unique_keys,
+void test(uint64_t num_unique_keys,
           ActiveKeyMode active_key_mode, DependencyMode dependency_mode,
           uint64_t num_requests, double theta,
           LevelDBCompactionMode compaction_mode, uint64_t wb_size,
           bool enable_fsync, bool use_custom_sizes,
-          const std::vector<uint64_t>& dump_points) {
+          const std::vector<uint64_t>& dump_points, Trainer* trainer) {
   // The number of unique keys.
   // uint32_t num_unique_keys = 2 * 1000 * 1000;
   // The item size.
@@ -65,7 +66,6 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   // double theta = 0.;
   // double theta = 0.99;
 
-  printf("store_type=%s\n", store_type_name);
   printf("num_unique_keys=%u\n", num_unique_keys);
   printf("active_key_mode=%u\n", active_key_mode);
   printf("dependency_mode=%u\n", dependency_mode);
@@ -115,7 +115,7 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
   params.hint_num_unique_keys = num_unique_keys;
   params.hint_theta = theta;
 
-  StoreType store(params, stats);
+  StoreType store(params, stats, trainer);
 
   // MeshDBParams params;
   // MeshDB store(params, stat, &lifetime_info);
@@ -327,13 +327,12 @@ void test(const char* store_type_name, uint64_t num_unique_keys,
 }
 
 int main(int argc, const char* argv[]) {
-  if (argc < 11) {
+  if (argc < 12) {
     printf(
-        "%s STORE-TYPE NUM-UNIQUE-KEYS ACTIVE-KEY-MODE DEPENDENCY-MODE "
+        "%s NUM-UNIQUE-KEYS ACTIVE-KEY-MODE DEPENDENCY-MODE "
         "NUM-REQUESTS ZIPF-THETA COMPACTION-MODE WB-SIZE ENABLE-FSYNC "
-        "USE-CUSTOM-SIZES [DUMP-POINTS]\n",
+        "USE-CUSTOM-SIZES NUM_EPISODES [DUMP-POINTS]\n",
         argv[0]);
-    printf("STORE-TYPE: leveldb-sim\n");
     printf("NUM-UNIQUE-KEYS: 1000000, ...\n");
     printf("ACTIVE-KEY-MODE: 0, 1, 2\n");
     printf("DEPENDENCY-MODE: 0, 1, 2, 3\n");
@@ -343,37 +342,43 @@ int main(int argc, const char* argv[]) {
     printf("WB-SIZE: 4194304, ...\n");
     printf("ENABLE-FSYNC: 0, 1\n");
     printf("USE-CUSTOM-SIZES: 0, 1\n");
-    return 1;
-  }
-  int store_type;
-  if (strcmp(argv[1], "leveldb-sim") == 0)
-    store_type = 0;
-  else {
-    printf("invalid STORE-TYPE\n");
+    printf("NUM_EPISODES: 100, 1000\n");
     return 1;
   }
 
-  uint32_t num_unique_keys = static_cast<uint32_t>(atoi(argv[2]));
-  ActiveKeyMode active_key_mode = static_cast<ActiveKeyMode>(atoi(argv[3]));
-  DependencyMode dependency_mode = static_cast<DependencyMode>(atoi(argv[4]));
-  uint64_t num_requests = static_cast<uint64_t>(atol(argv[5]));
-  double theta = atof(argv[6]);
+  uint32_t num_unique_keys = static_cast<uint32_t>(atoi(argv[1]));
+  ActiveKeyMode active_key_mode = static_cast<ActiveKeyMode>(atoi(argv[2]));
+  DependencyMode dependency_mode = static_cast<DependencyMode>(atoi(argv[3]));
+  uint64_t num_requests = static_cast<uint64_t>(atol(argv[4]));
+  double theta = atof(argv[5]);
   LevelDBCompactionMode compaction_mode =
-      static_cast<LevelDBCompactionMode>(atoi(argv[7]));
-  uint64_t wb_size = static_cast<uint64_t>(atol(argv[8]));
-  bool enable_fsync = atoi(argv[9]) != 0;
-  bool use_custom_sizes = atoi(argv[10]) != 0;
+      static_cast<LevelDBCompactionMode>(atoi(argv[6]));
+  uint64_t wb_size = static_cast<uint64_t>(atol(argv[7]));
+  bool enable_fsync = atoi(argv[8]) != 0;
+  bool use_custom_sizes = atoi(argv[9]) != 0;
+  uint64_t num_episodes = static_cast<uint64_t>(atoi(argv[10]));
 
   std::vector<uint64_t> dump_points;
-  for (int i = 11; i < argc; i++)
+  for (int i = 12; i < argc; i++)
     dump_points.push_back(static_cast<uint64_t>(atol(argv[i])));
 
-  if (store_type == 0)
-    test<LevelDB>("leveldb-sim", num_unique_keys, active_key_mode,
-                  dependency_mode, num_requests, theta, compaction_mode,
-                  wb_size, enable_fsync, use_custom_sizes, dump_points);
-  else
-    assert(false);
+  Trainer* RSMtrainer = nullptr;
+  if(compaction_mode == LevelDBCompactionMode::kRSMTrain) {
+    /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
+    RSMtrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    for (int i = 0; i < num_episodes; i++)
+    test<LevelDB>(num_unique_keys, active_key_mode,
+                    dependency_mode, num_requests, theta, compaction_mode,
+                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer);
+  } else if (compaction_mode == LevelDBCompactionMode::kEvaluate) {      
+    RSMtrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    test<LevelDB>(num_unique_keys, active_key_mode,
+                    dependency_mode, num_requests, theta, compaction_mode,
+                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer);  
+  } else 
+    test<LevelDB>(num_unique_keys, active_key_mode,
+                    dependency_mode, num_requests, theta, compaction_mode,
+                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer); 
 
   return 0;
 }

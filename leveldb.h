@@ -29,22 +29,8 @@ enum class LevelDBCompactionMode {
   kLargestRatio = 4,
   // Always compact the whole level (like LSM-tree).
   kWholeLevel = 5,
-
-  // RocksDB - Pick an SSTable whose size is the maximum (default) + 1
-  // compaction thread
-  kRocksDBMaxSize = 6,
-  // RocksDB - Pick an SSTable in the same way as kLinear + 1 compaction thread
-  kRocksDBLinear = 7,
-  // RocksDB - kRocksDBMaxSize + 4 compaction threads
-  kRocksDBMaxSizeMT = 8,
-  // RocksDB - kRocksDBLinear + 4 compaction threads
-  kRocksDBLinearMT = 9,
-
-  // RocksDB - Universal Compaction
-  kRocksDBUniversal = 10,
-  // RSM-tree Compaction
-  kRSMTrain = 11,
-  kRSMEvaluate = 12,
+  kRSMTrain = 6,
+  kRSMEvaluate = 7,
 };
 
 struct LevelDBParams {

@@ -31,11 +31,10 @@ class GraphConvolution : public torch::nn::Module {
      
       normalize_adj = torch::pow(normalize_adj, -0.5);
       normalize_adj = torch::diag(normalize_adj);
-      normalize_adj = normalize_adj.unsqueeze(0); // [1, 37, 37]
+      normalize_adj = normalize_adj.unsqueeze(0); 
       
       torch::Tensor adj_final = torch::matmul(torch::matmul(normalize_adj, adj), normalize_adj);
 
-//      std::cout << "adj_final = " << adj_final << std::endl;
       torch::Tensor output = torch::matmul(adj_final, support);
       return output;
     }
