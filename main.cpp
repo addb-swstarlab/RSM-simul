@@ -3,6 +3,7 @@
 #include "zipf.h"
 #include "leveldb.h"
 #include "policy_rl/Trainer.h"
+#include "policy_rl/DQNTrainer.h"
 #include <sys/time.h>
 
 enum class ActiveKeyMode {
@@ -370,7 +371,7 @@ int main(int argc, const char* argv[]) {
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
                     wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer);
-  } else if (compaction_mode == LevelDBCompactionMode::kEvaluate) {      
+  } else if (compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {      
     RSMtrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,

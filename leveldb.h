@@ -104,7 +104,7 @@ static const uint32_t LevelDBItemDeletion = 0x80000010U;
 // https://leveldb.googlecode.com/svn/trunk/doc/impl.html
 class LevelDB {
  public:
-  LevelDB(const LevelDBParams& params, std::vector<Stat>& stats);
+  LevelDB(const LevelDBParams& params, std::vector<Stat>& stats, Trainer* trainer);
   ~LevelDB();
 
   // Prints the summary of the store.

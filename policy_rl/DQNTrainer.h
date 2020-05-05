@@ -2,7 +2,6 @@
 
 #include <torch/torch.h>
 #include "ExperienceReplay.h"
-#include "DQN.h"
 #include <Trainer.h>
 
 class GraphConvolution : public torch::nn::Module {
@@ -57,8 +56,8 @@ class DQNTrainer : public Trainer {
     double lr_dqn = 1e-4;         // learning rate of the actor
     double weight_decay = 0;        // L2 weight decay
         
-    std::shared_ptr<GraphActor> dqn_local;
-    std::shared_ptr<GraphActor> dqn_target;
+    std::shared_ptr<GraphDQN> dqn_local;
+    std::shared_ptr<GraphDQN> dqn_target;
     torch::optim::Adam dqn_optimizer;
     torch::Device device;
        

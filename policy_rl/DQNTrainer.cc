@@ -1,5 +1,5 @@
 #include "DQNTrainer.h"
-#include "DQN.h"
+#include <sys/stat.h>
 #include "ExperienceReplay.h"
 #include <math.h>
 #include <chrono>
@@ -87,23 +87,30 @@ void DQNTrainer::learn() {
   torch::Tensor reward_tensors = torch::cat(rewards, 0).to(device);
 
   torch::Tensor q_values = dqn_local->forward(prev_feat_tensors, prev_adj_tensors);
+  std::cout << "q_values = " << q_values.sizes() << std::endl;
   torch::Tensor next_target_q_values = dqn_target->forward(post_feat_tensors, post_adj_tensors);
+  std::cout << "next_target_q_values = " << next_target_q_values.sizes() << std::endl;
   torch::Tensor next_q_values = dqn_local->forward(post_feat_tensors, post_adj_tensors);
+  std::cout << "next_q_values = " << next_q_values.sizes() << std::endl;
 
-  actions_tensor = actions_tensor.to(torch::kInt64);
+  action_tensors = action_tensors.to(torch::kInt64);
+  std::cout << "actions_tensor = " << action_tensors.sizes() << " && " 
+          << action_tensors.unsqueeze(1) << std::endl;
 
-  torch::Tensor q_value = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1);
+  torch::Tensor q_value = q_values.gather(1, action_tensors.unsqueeze(1)).squeeze(1);
+  std::cout << "q_value = " << q_value.sizes() << std::endl;
   torch::Tensor maximum = std::get<1>(next_q_values.max(1));
+  std::cout << "maximum = " << maximum.sizes() << " && " << maximum.unsqueeze(1) << std::endl;
   torch::Tensor next_q_value = next_target_q_values.gather(1, maximum.unsqueeze(1)).squeeze(1);
-  torch::Tensor expected_q_value = rewards_tensor + gamma * next_q_value;
+  std::cout << "next_q_value = " << next_q_value.sizes() << std::endl;
+  torch::Tensor expected_q_value = reward_tensors + gamma * next_q_value;
+  std::cout << "expected_q_value = " << expected_q_value.sizes() << std::endl;
         
   torch::Tensor loss = torch::mse_loss(q_value, expected_q_value);
 
   dqn_optimizer.zero_grad();
   loss.backward();
   dqn_optimizer.step();
-
-  return loss;  
 }
 
 double DQNTrainer::epsilon_by_frame() {
@@ -115,8 +122,8 @@ std::vector<float> DQNTrainer::act_graph(std::vector<float> &feat_matrix, std::v
   frame_id++;
   auto r = ((double) rand() / (RAND_MAX));
   if (r <= epsilon){
-    std::vector<float> v();
-    v.emplace_back(rand() % victim_size_);    
+    std::vector<float> v;
+    v.push_back(rand() % victim_size_);    
     return v;
   }
     
@@ -139,22 +146,17 @@ void DQNTrainer::hard_copy(std::shared_ptr<torch::nn::Module> local, std::shared
 
 void DQNTrainer::saveCheckPoints()
 {
-    auto fileActor ("/home/wonki/rsm_checkpoint/ckp_actor.pt");
-    auto fileCritic ("/home/wonki/rsm_checkpoint/ckp_critic.pt");
+    auto fileDQN ("/home/wonki/rsm_checkpoint/ckp_dqn.pt");
     
-    torch::save(std::dynamic_pointer_cast<torch::nn::Module>(actor_local) , fileActor);
-    torch::save(std::dynamic_pointer_cast<torch::nn::Module>(critic_local) , fileCritic);
+    torch::save(std::dynamic_pointer_cast<torch::nn::Module>(dqn_local), fileDQN);
 }
 
 void DQNTrainer::loadCheckPoints()
 {
-    auto fileActor ("/home/wonki/rsm_checkpoint/ckp_actor.pt");
-    auto fileCritic ("/home/wonki/rsm_checkpoint/ckp_critic.pt");
-    struct stat actor_buffer;
-    struct stat critic_buffer;
-    if((stat(fileActor, &actor_buffer) == 0) && 
-       (stat(fileCritic, &critic_buffer) == 0 )) {
-      torch::load(actor_local, fileActor);
-      torch::load(critic_local, fileCritic);
+    auto fileDQN ("/home/wonki/rsm_checkpoint/ckp_dqn.pt");
+
+    struct stat dqn_buffer;
+    if((stat(fileDQN, &dqn_buffer) == 0)) {
+      torch::load(dqn_local, fileDQN);
     }
 }
