@@ -90,7 +90,7 @@ class DDPGTrainer : public Trainer {
     torch::Device device;
        
   DDPGTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size, int64_t capacity);
-  virtual std::vector<float> act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise);
+  virtual std::vector<float> act_ddpg(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise);
   void reset() {
     noise->reset();  
   }

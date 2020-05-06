@@ -96,7 +96,7 @@ DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
     noise = new OUNoise(static_cast<size_t>(action_size));
 }  
 
-std::vector<float> DDPGTrainer::act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
+std::vector<float> DDPGTrainer::act_ddpg(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
   torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, (long int) (feat_matrix.size()/3), 3}, torch::dtype(torch::kFloat)).to(device);
   torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, (long int) (sqrt(adj_matrix.size())), 
           (long int) (sqrt(adj_matrix.size()))}, torch::dtype(torch::kFloat)).to(device);

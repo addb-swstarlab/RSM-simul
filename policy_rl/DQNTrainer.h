@@ -60,9 +60,9 @@ class DQNTrainer : public Trainer {
     std::shared_ptr<GraphDQN> dqn_target;
     torch::optim::Adam dqn_optimizer;
     torch::Device device;
-       
+        
     DQNTrainer(int64_t n_features, int64_t n_hidden, int64_t n_output, int64_t action_size, int64_t victim_size, int64_t capacity);
-    virtual std::vector<float> act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise);
+    virtual int64_t act_dqn(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix);
     virtual void learn();
     void hard_copy( std::shared_ptr<torch::nn::Module> local, std::shared_ptr<torch::nn::Module> target);
   

@@ -79,52 +79,45 @@ void DQNTrainer::learn() {
     rewards.push_back(std::get<5>(i));
   }
   
+  /* State */
   torch::Tensor prev_adj_tensors = torch::cat(prev_adj_tensor, 0).to(device);
   torch::Tensor prev_feat_tensors = torch::cat(prev_feat_tensor, 0).to(device);
+  /* State Prime */
   torch::Tensor post_adj_tensors = torch::cat(post_adj_tensor, 0).to(device);
   torch::Tensor post_feat_tensors = torch::cat(post_feat_tensor, 0).to(device);
+  /* Action */
   torch::Tensor action_tensors = torch::cat(actions, 0).to(device);
+  /* Reward */
   torch::Tensor reward_tensors = torch::cat(rewards, 0).to(device);
 
-  torch::Tensor q_values = dqn_local->forward(prev_feat_tensors, prev_adj_tensors);
-  std::cout << "q_values = " << q_values.sizes() << std::endl;
-  torch::Tensor next_target_q_values = dqn_target->forward(post_feat_tensors, post_adj_tensors);
-  std::cout << "next_target_q_values = " << next_target_q_values.sizes() << std::endl;
-  torch::Tensor next_q_values = dqn_local->forward(post_feat_tensors, post_adj_tensors);
-  std::cout << "next_q_values = " << next_q_values.sizes() << std::endl;
-
   action_tensors = action_tensors.to(torch::kInt64);
-  std::cout << "actions_tensor = " << action_tensors.sizes() << " && " 
-          << action_tensors.unsqueeze(1) << std::endl;
 
-  torch::Tensor q_value = q_values.gather(1, action_tensors.unsqueeze(1)).squeeze(1);
-  std::cout << "q_value = " << q_value.sizes() << std::endl;
-  torch::Tensor maximum = std::get<1>(next_q_values.max(1));
-  std::cout << "maximum = " << maximum.sizes() << " && " << maximum.unsqueeze(1) << std::endl;
-  torch::Tensor next_q_value = next_target_q_values.gather(1, maximum.unsqueeze(1)).squeeze(1);
-  std::cout << "next_q_value = " << next_q_value.sizes() << std::endl;
-  torch::Tensor expected_q_value = reward_tensors + gamma * next_q_value;
-  std::cout << "expected_q_value = " << expected_q_value.sizes() << std::endl;
-        
-  torch::Tensor loss = torch::mse_loss(q_value, expected_q_value);
-
+  torch::Tensor current_q_value = dqn_local->forward(prev_feat_tensors, prev_adj_tensors).gather(1, action_tensors);
+  torch::Tensor max_q_prime = (std::get<0>(dqn_target->forward(post_feat_tensors, post_adj_tensors).max(1))).unsqueeze(1);
+  torch::Tensor expected_q_value = reward_tensors + gamma * max_q_prime;
+          
+  torch::Tensor loss = torch::mse_loss(current_q_value, expected_q_value.detach());
+  
   dqn_optimizer.zero_grad();
   loss.backward();
   dqn_optimizer.step();
+  
+  if(frame_id % 1000 ) hard_copy(dqn_local, dqn_target);
 }
 
 double DQNTrainer::epsilon_by_frame() {
   return epsilon_final + (epsilon_start - epsilon_final) * exp(-1. * frame_id / epsilon_decay);
 }
 
-std::vector<float> DQNTrainer::act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
+int64_t DQNTrainer::act_dqn(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix) {
   double epsilon = epsilon_by_frame();
   frame_id++;
   auto r = ((double) rand() / (RAND_MAX));
+  
+//  std::cout << std::setprecision(16) << "FRAME : " << frame_id - 1
+//          << " EPSILON : " << epsilon << " r : " << r << std::endl;
   if (r <= epsilon){
-    std::vector<float> v;
-    v.push_back(rand() % victim_size_);    
-    return v;
+    return ((int64_t)(rand() % victim_size_));    
   }
     
     
@@ -133,8 +126,8 @@ std::vector<float> DQNTrainer::act_graph(std::vector<float> &feat_matrix, std::v
           (long int) (sqrt(adj_matrix.size()))}, torch::dtype(torch::kFloat)).to(device);
   torch::Tensor q_value = dqn_local->forward(feat_tensor, adj_tensor).to(torch::kCPU);
   torch::Tensor action = std::get<1>(q_value.max(1));
-  std::vector<float> v(action.data_ptr<float>(), action.data_ptr<float>() + action.numel());
-  return v;  
+
+  return action[0].item<int64_t>();  
 }
 
 void DQNTrainer::hard_copy(std::shared_ptr<torch::nn::Module> local, std::shared_ptr<torch::nn::Module> target) {

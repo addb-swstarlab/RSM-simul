@@ -328,7 +328,7 @@ void test(uint64_t num_unique_keys,
 }
 
 int main(int argc, const char* argv[]) {
-  if (argc < 12) {
+  if (argc < 11) {
     printf(
         "%s NUM-UNIQUE-KEYS ACTIVE-KEY-MODE DEPENDENCY-MODE "
         "NUM-REQUESTS ZIPF-THETA COMPACTION-MODE WB-SIZE ENABLE-FSYNC "
@@ -360,7 +360,7 @@ int main(int argc, const char* argv[]) {
   uint64_t num_episodes = static_cast<uint64_t>(atoi(argv[10]));
 
   std::vector<uint64_t> dump_points;
-  for (int i = 12; i < argc; i++)
+  for (int i = 11; i < argc; i++)
     dump_points.push_back(static_cast<uint64_t>(atol(argv[i])));
 
   Trainer* RSMtrainer = nullptr;

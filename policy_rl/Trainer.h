@@ -19,18 +19,22 @@ class Trainer {
     int64_t batch_size = 1;
     double gamma = 0.99;
     int64_t frame_id = 0;
-    std::vector<float> Action;
+    std::vector<float> Action_DDPG;
+    int64_t Action_DQN;
     ExperienceReplay buffer;
-    std::vector<double> PrevState;
-    std::vector<double> PostState;
     std::vector<float> actor_loss_;
     std::vector<float> critic_loss_;
     std::vector<float> rewards_;
       
     Trainer(uint64_t capacity) : buffer(capacity){};
     virtual ~Trainer(){}   
-    virtual std::vector<float> act_graph(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
-      std::cout << "Trainer act_graph function" << std::endl;
+    virtual int64_t act_dqn(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix) {
+      std::cout << "Trainer Should be DQNTrainer" << std::endl;
+      return 0;
+    }
+    
+    virtual std::vector<float> act_ddpg(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
+      std::cout << "Trainer Should be DDPGTrainer" << std::endl;
       return std::vector<float>();
     }
     virtual void learn() {}
