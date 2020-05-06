@@ -110,8 +110,6 @@ class LevelDB {
   // Prints the summary of the store.
   void print_status() const;
   
-  void print_network_status() const;
-  
   void setCompaction(LevelDBCompactionMode mode);
 
   // Writes the current items in the store to the file.

@@ -311,8 +311,6 @@ void test(uint64_t num_unique_keys,
   printf("elapsed time: %.3lf seconds\n\n",
          (double)(get_usec() - start_t) / 1000000.);
   
-  store.print_network_status();
-
   if (false) {
     printf("forcing compaction\n");
     fflush(stdout);
@@ -363,23 +361,44 @@ int main(int argc, const char* argv[]) {
   for (int i = 11; i < argc; i++)
     dump_points.push_back(static_cast<uint64_t>(atol(argv[i])));
 
-  Trainer* RSMtrainer = nullptr;
+  Trainer* RSMTrainer = nullptr;
   if(compaction_mode == LevelDBCompactionMode::kRSMTrain) {
+    /* reward file */
+    FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");  
+    FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");    
+    
     /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
-    RSMtrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
-    for (int i = 0; i < num_episodes; i++)
-    test<LevelDB>(num_unique_keys, active_key_mode,
-                    dependency_mode, num_requests, theta, compaction_mode,
-                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer);
+    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    for (int i = 0; i < num_episodes; i++) {
+      double sum = 0.0;
+      uint size = RSMTrainer->rewards_.size();
+      test<LevelDB>(num_unique_keys, active_key_mode,
+                      dependency_mode, num_requests, theta, compaction_mode,
+                      wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);
+      
+      for(uint i = 0; i < size; i++) {
+        sum += RSMTrainer->rewards_[i];
+      }
+  
+      fprintf(fp_reward, "%lf\n", sum/(double)size);
+      RSMTrainer->rewards_.clear();
+      
+      fprintf(fp_loss, " ==============Loss[episode : %d]============== \n", i);
+      for(uint i = 0; i < RSMTrainer->loss_.size(); i++) {
+       fprintf(fp_loss, "%lf\n", RSMTrainer->loss_[i]);
+      }
+      RSMTrainer->loss_.clear();
+    }
+    
   } else if (compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {      
-    RSMtrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
-                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer);  
+                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);  
   } else 
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
-                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMtrainer); 
+                    wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer); 
 
   return 0;
 }

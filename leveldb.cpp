@@ -78,33 +78,6 @@ void LevelDB::print_status() const {
   }
 }
 
-void LevelDB::print_network_status() const {
-  if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) {
-    FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");
-  
-    double sum = 0.0;
-    uint size = RSMtrainer_->rewards_.size();
-    for(uint i = 0; i < size; i++) {
-      sum += RSMtrainer_->rewards_[i];
-    }
-  
-    fprintf(fp_reward, "%lf\n", sum/(double)size);
-  
-    FILE* fp_actor = fopen("/home/wonki/rsm-simul/actor_info.txt", "at");
-  
-    fprintf(fp_actor, " ==============Actor Loss============== \n");
-    for(uint i = 0; i < RSMtrainer_->actor_loss_.size(); i++) {
-      fprintf(fp_actor, "%lf\n", RSMtrainer_->actor_loss_[i]);
-    }
-  
-    FILE* fp_critic = fopen("/home/wonki/rsm-simul/critic_info.txt", "at");
-    fprintf(fp_critic, " ==============Critic Loss============== \n");
-    for(uint i = 0; i < RSMtrainer_->critic_loss_.size(); i++) {
-      fprintf(fp_critic, "%lf\n", RSMtrainer_->critic_loss_[i]);
-    }
-  }
-}
-
 void LevelDB::setCompaction(LevelDBCompactionMode mode) {
   params_.compaction_mode = mode;
 }
@@ -595,9 +568,9 @@ std::size_t LevelDB::select_action(std::size_t level) {
 //  std::size_t act_idx = (int) (RSMtrainer_->Action[0] * (num_victim - 1)); 
   std::size_t act_idx = (int) (RSMtrainer_->Action_DQN); 
   std::size_t selected = level_idx[level][act_idx].curr_idx;  
-  if(compaction_id_ % 100 == 0) {
+  if(compaction_id_ % 1000 == 0) {
     std::cout << std::setprecision(32);
-    std::cout << "ACTION [" << level << "] : " << (float) (RSMtrainer_->Action_DQN) << std::endl;
+    std::cout << "ACTION [" << level << "] : " << RSMtrainer_->Action_DQN << std::endl;
     std::cout << "SELECTED = " << selected <<std::endl; 
   }
   return selected;
@@ -809,11 +782,11 @@ void LevelDB::check_compaction(std::size_t level) {
               RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
                       post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
             
-              if(RSMtrainer_->buffer.size_buffer() >= 1000) {
+              if(RSMtrainer_->buffer.size_buffer() >= 3000) {
                 RSMtrainer_->learn();
               }
            
-              if(compaction_id_ % 1000 == 0) {
+              if(compaction_id_ % 3000 == 0) {
                 RSMtrainer_->saveCheckPoints(); 
               }
             }
@@ -827,15 +800,16 @@ void LevelDB::check_compaction(std::size_t level) {
           prev_adj_tensor = set_submatrix(level,max);
           prev_feat_tensor = set_subfeature(level, *max);
 
-          std::cout << "act start " << std::endl;
-//          if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
-//            RSMtrainer_->Action_DDPG = RSMtrainer_->act_ddpg(feat_matrix, adj_matrix, true); 
-//          else
-//            RSMtrainer_->Action_DDPG = RSMtrainer_->act_ddpg(feat_matrix, adj_matrix, false);
+        /* DDPG code */
+        /*
+          if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
+            RSMtrainer_->Action_DDPG = RSMtrainer_->act_ddpg(feat_matrix, adj_matrix, true); 
+          else
+            RSMtrainer_->Action_DDPG = RSMtrainer_->act_ddpg(feat_matrix, adj_matrix, false);
+         * */
           
           RSMtrainer_->Action_DQN = RSMtrainer_->act_dqn(feat_matrix, adj_matrix); 
           
-          std::cout << "act end " << std::endl;
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected); 
           set_input = true;
@@ -860,7 +834,7 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_number[level-1]++;
           compaction_id_++;
         
-          if(((compaction_id_-1) % 100 == 0)) {
+          if(((compaction_id_-1) % 1000 == 0)) {
             std::cout << std::setprecision(32);
             std::cout << "insert = " << inserts_ << std::endl;
             std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;

@@ -24,6 +24,7 @@ class Trainer {
     ExperienceReplay buffer;
     std::vector<float> actor_loss_;
     std::vector<float> critic_loss_;
+    std::vector<float> loss_;
     std::vector<float> rewards_;
       
     Trainer(uint64_t capacity) : buffer(capacity){};
