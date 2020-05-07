@@ -70,10 +70,10 @@ DDPGTrainer::DDPGTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, 
     torch::DeviceType device_type;
     if (torch::cuda::is_available()) {
         device_type = torch::kCUDA;
-        std::cout << "Agent - Cuda available" << std::endl;
+        std::cout << "Agent - DDPG Cuda available" << std::endl;
     } else {
         device_type = torch::kCPU;
-        std::cout << "Agent - CPU used" << std::endl;
+        std::cout << "Agent - DDPG CPU used" << std::endl;
     }
     device = torch::Device(device_type);
     

@@ -368,30 +368,30 @@ int main(int argc, const char* argv[]) {
     FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");    
     
     /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
-    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 6000);   
     for (int i = 0; i < num_episodes; i++) {
       double sum = 0.0;
-      uint size = RSMTrainer->rewards_.size();
       test<LevelDB>(num_unique_keys, active_key_mode,
                       dependency_mode, num_requests, theta, compaction_mode,
                       wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);
       
-      for(uint i = 0; i < size; i++) {
-        sum += RSMTrainer->rewards_[i];
+      uint reward_size = RSMTrainer->rewards_.size();      
+      for(uint j = 0; j < reward_size; j++) {
+        sum += RSMTrainer->rewards_[j];
       }
   
-      fprintf(fp_reward, "%lf\n", sum/(double)size);
+      fprintf(fp_reward, "%lf\n", sum/(double)reward_size);
       RSMTrainer->rewards_.clear();
       
       fprintf(fp_loss, " ==============Loss[episode : %d]============== \n", i);
-      for(uint i = 0; i < RSMTrainer->loss_.size(); i++) {
-       fprintf(fp_loss, "%lf\n", RSMTrainer->loss_[i]);
+      for(uint k = 0; k < RSMTrainer->loss_.size(); k++) {
+       fprintf(fp_loss, "%lf\n", RSMTrainer->loss_[k]);
       }
       RSMTrainer->loss_.clear();
     }
     
   } else if (compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {      
-    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 10240);   
+    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 8192);   
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
                     wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);  

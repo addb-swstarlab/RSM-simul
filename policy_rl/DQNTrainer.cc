@@ -14,10 +14,10 @@ DQNTrainer::DQNTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, in
     torch::DeviceType device_type;
     if (torch::cuda::is_available()) {
         device_type = torch::kCUDA;
-        std::cout << "Agent - Cuda available" << std::endl;
+        std::cout << "Agent - DQN Cuda available" << std::endl;
     } else {
         device_type = torch::kCPU;
-        std::cout << "Agent - CPU used" << std::endl;
+        std::cout << "Agent - DQN CPU used" << std::endl;
     }
     
     device = torch::Device(device_type);
@@ -97,7 +97,7 @@ void DQNTrainer::learn() {
   torch::Tensor expected_q_value = reward_tensors + gamma * max_q_prime;
           
   torch::Tensor loss = torch::mse_loss(current_q_value, expected_q_value.detach());
-  loss_.push_back(loss.to(torch::kCPU).item<float>());
+  loss_.emplace_back(loss.to(torch::kCPU).item<float>());
   
   dqn_optimizer.zero_grad();
   loss.backward();
@@ -125,10 +125,11 @@ int64_t DQNTrainer::act_dqn(std::vector<float> &feat_matrix, std::vector<float> 
   torch::Tensor feat_tensor = torch::from_blob(feat_matrix.data(), {1, (long int) (feat_matrix.size()/3), 3}, torch::dtype(torch::kFloat)).to(device);
   torch::Tensor adj_tensor = torch::from_blob(adj_matrix.data(), {1, (long int) (sqrt(adj_matrix.size())), 
           (long int) (sqrt(adj_matrix.size()))}, torch::dtype(torch::kFloat)).to(device);
-  torch::Tensor q_value = dqn_local->forward(feat_tensor, adj_tensor).to(torch::kCPU);
+                   
+  torch::Tensor q_value = dqn_local->forward(feat_tensor, adj_tensor);
   torch::Tensor action = std::get<1>(q_value.max(1));
 
-  return action[0].item<int64_t>();  
+  return action[0].to(torch::kCPU).item<int64_t>();  
 }
 
 void DQNTrainer::hard_copy(std::shared_ptr<torch::nn::Module> local, std::shared_ptr<torch::nn::Module> target) {

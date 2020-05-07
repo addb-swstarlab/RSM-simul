@@ -568,11 +568,11 @@ std::size_t LevelDB::select_action(std::size_t level) {
 //  std::size_t act_idx = (int) (RSMtrainer_->Action[0] * (num_victim - 1)); 
   std::size_t act_idx = (int) (RSMtrainer_->Action_DQN); 
   std::size_t selected = level_idx[level][act_idx].curr_idx;  
-  if(compaction_id_ % 1000 == 0) {
-    std::cout << std::setprecision(32);
-    std::cout << "ACTION [" << level << "] : " << RSMtrainer_->Action_DQN << std::endl;
-    std::cout << "SELECTED = " << selected <<std::endl; 
-  }
+//  if(compaction_id_ % 1000 == 0) {
+//    std::cout << std::setprecision(32);
+//    std::cout << "ACTION [" << level << "] : " << RSMtrainer_->Action_DQN << std::endl;
+//    std::cout << "SELECTED = " << selected <<std::endl; 
+//  }
   return selected;
 }
 
@@ -791,7 +791,7 @@ void LevelDB::check_compaction(std::size_t level) {
               }
             }
             
-            RSMtrainer_->rewards_.push_back(Reward.at(0)); 
+            RSMtrainer_->rewards_.emplace_back(Reward.at(0)); 
             set_input = false;
           }
           
@@ -834,13 +834,13 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_number[level-1]++;
           compaction_id_++;
         
-          if(((compaction_id_-1) % 1000 == 0)) {
-            std::cout << std::setprecision(32);
-            std::cout << "insert = " << inserts_ << std::endl;
-            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
-            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
-            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
-          }
+//          if(((compaction_id_-1) % 1000 == 0)) {
+//            std::cout << std::setprecision(32);
+//            std::cout << "insert = " << inserts_ << std::endl;
+//            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
+//            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
+//            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
+//          }
         }
         
       }
