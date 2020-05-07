@@ -21,7 +21,7 @@ DQNTrainer::DQNTrainer(int64_t n_feature, int64_t n_hidden, int64_t n_output, in
     }
     
     device = torch::Device(device_type);
-    
+//    
     victim_size_ = victim_size;
     dqn_local->to(device);
     dqn_target->to(device);
@@ -54,7 +54,7 @@ torch::Tensor GraphDQN::forward(torch::Tensor feature, torch::Tensor adj) {
   input = input.view({input.size(0), -1});
   input = torch::relu(fc(input));
 
-  input = torch::sigmoid(output(input));
+  input = output(input);
 
   return input;
 }
@@ -103,7 +103,7 @@ void DQNTrainer::learn() {
   loss.backward();
   dqn_optimizer.step();
   
-  if(frame_id % 1000 ) hard_copy(dqn_local, dqn_target);
+  if(frame_id % 1000 == 0) hard_copy(dqn_local, dqn_target);
 }
 
 double DQNTrainer::epsilon_by_frame() {

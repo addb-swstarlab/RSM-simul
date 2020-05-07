@@ -33,7 +33,7 @@ class Trainer {
       std::cout << "Trainer Should be DQNTrainer" << std::endl;
       return 0;
     }
-    
+//    
     virtual std::vector<float> act_ddpg(std::vector<float> &feat_matrix, std::vector<float> &adj_matrix, bool add_noise) {
       std::cout << "Trainer Should be DDPGTrainer" << std::endl;
       return std::vector<float>();

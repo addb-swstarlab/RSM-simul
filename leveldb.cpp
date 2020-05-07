@@ -15,7 +15,7 @@
 #include "policy_rl/Trainer.h"
 
 // #define REMEMBER_NEXT_FIRST_KEY
-
+//
 LevelDB::LevelDB(const LevelDBParams& params, std::vector<Stat>& stats, Trainer* trainer)
     : params_(params), stats_(stats) {
   log_bytes_ = 0;
@@ -568,11 +568,11 @@ std::size_t LevelDB::select_action(std::size_t level) {
 //  std::size_t act_idx = (int) (RSMtrainer_->Action[0] * (num_victim - 1)); 
   std::size_t act_idx = (int) (RSMtrainer_->Action_DQN); 
   std::size_t selected = level_idx[level][act_idx].curr_idx;  
-//  if(compaction_id_ % 1000 == 0) {
-//    std::cout << std::setprecision(32);
-//    std::cout << "ACTION [" << level << "] : " << RSMtrainer_->Action_DQN << std::endl;
-//    std::cout << "SELECTED = " << selected <<std::endl; 
-//  }
+  if(compaction_id_ % 1000 == 0) {
+    std::cout << std::setprecision(32);
+    std::cout << "ACTION [" << level << "] : " << RSMtrainer_->Action_DQN << std::endl;
+    std::cout << "SELECTED = " << selected <<std::endl; 
+  }
   return selected;
 }
 
@@ -782,11 +782,11 @@ void LevelDB::check_compaction(std::size_t level) {
               RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
                       post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
             
-              if(RSMtrainer_->buffer.size_buffer() >= 3000) {
+              if(RSMtrainer_->buffer.size_buffer() >= 2000) {
                 RSMtrainer_->learn();
               }
            
-              if(compaction_id_ % 3000 == 0) {
+              if(compaction_id_ % 10000 == 0) {
                 RSMtrainer_->saveCheckPoints(); 
               }
             }
@@ -834,13 +834,13 @@ void LevelDB::check_compaction(std::size_t level) {
           compaction_number[level-1]++;
           compaction_id_++;
         
-//          if(((compaction_id_-1) % 1000 == 0)) {
-//            std::cout << std::setprecision(32);
-//            std::cout << "insert = " << inserts_ << std::endl;
-//            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
-//            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
-//            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
-//          }
+          if(((compaction_id_-1) % 1000 == 0)) {
+            std::cout << std::setprecision(32);
+            std::cout << "insert = " << inserts_ << std::endl;
+            std::cout << "level = " << level << " & compaction_id = " << compaction_id_ - 1<< std::endl;
+            std::cout << "read = " << (float) read_bytes_non_output_ << " write = " << (float) write_bytes_ <<std::endl;
+            std::cout << "Reward = " << ((float) read_bytes_non_output_/ (float) write_bytes_) <<std::endl;
+          }
         }
         
       }

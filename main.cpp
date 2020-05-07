@@ -364,11 +364,11 @@ int main(int argc, const char* argv[]) {
   Trainer* RSMTrainer = nullptr;
   if(compaction_mode == LevelDBCompactionMode::kRSMTrain) {
     /* reward file */
-    FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");  
-    FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");    
-    
+    FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");
+    FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");   
+
     /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
-    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 6000);   
+    RSMTrainer = new DQNTrainer(3, 1024, 128, 5, 5, 5000);   
     for (int i = 0; i < num_episodes; i++) {
       double sum = 0.0;
       test<LevelDB>(num_unique_keys, active_key_mode,
@@ -390,8 +390,11 @@ int main(int argc, const char* argv[]) {
       RSMTrainer->loss_.clear();
     }
     
+    fclose(fp_reward);
+    fclose(fp_loss);
+    
   } else if (compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {      
-    RSMTrainer = new DQNTrainer(3, 256, 64, 5, 5, 8192);   
+    RSMTrainer = new DQNTrainer(3, 1024, 256, 5, 5, 5000);   
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
                     wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);  

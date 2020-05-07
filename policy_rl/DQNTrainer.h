@@ -29,7 +29,7 @@ class GraphConvolution : public torch::nn::Module {
       const auto bound = 1 / sqrt(weight.size(1));
       torch::nn::init::uniform_(weight, -bound, bound); 
     }
-    
+//    
     torch::Tensor weight;
 };
 
@@ -48,7 +48,7 @@ class GraphDQN : public torch::nn::Module {
 
 class DQNTrainer : public Trainer {
   public:
-    double epsilon_start = 0.7;
+    double epsilon_start = 0.8;
     double epsilon_final = 0.01;
     int64_t epsilon_decay = 30000;
     int64_t victim_size_;

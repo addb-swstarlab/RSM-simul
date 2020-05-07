@@ -29,7 +29,7 @@ torch::Tensor GraphActor::forward(torch::Tensor feature, torch::Tensor adj) {
   input = torch::relu(fc(input));
 
   input = torch::sigmoid(output(input));
-
+//
   return input;
 }
 
