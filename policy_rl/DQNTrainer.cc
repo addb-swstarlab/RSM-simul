@@ -40,8 +40,8 @@ GraphDQN::GraphDQN(int64_t n_feature, int64_t n_hidden, int64_t n_output, int64_
   victim_size_ = victim_size;
   register_module("gc1", gc1);
   register_module("gc2", gc2);
-  fc = register_module("fc", torch::nn::Linear(n_output*victim_size, n_output));
-  output = register_module("output", torch::nn::Linear(n_output, victim_size));
+  fc = register_module("fc", torch::nn::Linear(n_output, 64));
+  output = register_module("output", torch::nn::Linear(64, victim_size));
 }
 
 torch::Tensor GraphDQN::forward(torch::Tensor feature, torch::Tensor adj) {
@@ -50,9 +50,15 @@ torch::Tensor GraphDQN::forward(torch::Tensor feature, torch::Tensor adj) {
   input = torch::dropout(input, 0.3, is_training());
   input = gc2->forward(input, adj);
 
-  input = input.slice(1, 0, victim_size_);
+  /* Graph embedding version */  
+  input = std::get<0>(input.max(1));
   input = input.view({input.size(0), -1});
   input = torch::relu(fc(input));
+
+  /* Node embedding version */  
+//  input = input.slice(1, 0, victim_size_);
+//  input = input.view({input.size(0), -1});
+//  input = torch::relu(fc(input));
 
   input = output(input);
 

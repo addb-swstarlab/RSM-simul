@@ -368,7 +368,7 @@ int main(int argc, const char* argv[]) {
     //FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");   
 
     /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
-    RSMTrainer = new DQNTrainer(3, 512, 64, 5, 5, 5000);   
+    RSMTrainer = new DQNTrainer(3, 512, 128, 5, 5, 5000);   
     for (int i = 0; i < num_episodes; i++) {
       double sum = 0.0;
       test<LevelDB>(num_unique_keys, active_key_mode,
