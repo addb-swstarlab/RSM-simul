@@ -773,22 +773,28 @@ void LevelDB::check_compaction(std::size_t level) {
               torch::Device device(torch::kCPU);
               int* max;
 
+             // double start_matrix =  get_time();
               torch::Tensor post_adj_tensor = set_submatrix(level, max).to(device);
               torch::Tensor post_feat_tensor = set_subfeature(level, *max).to(device);  
 
               torch::Tensor action_tensor = torch::tensor(Action, torch::dtype(torch::kFloat)).to(device);
               torch::Tensor reward_tensor = torch::tensor(Reward, torch::dtype(torch::kFloat)).to(device);
+              //std::cout << "matrix generation = " << get_time() - start_matrix << std::endl;
 
+             // double start_push =  get_time();
               RSMtrainer_->buffer.push(prev_adj_tensor, prev_feat_tensor, 
                       post_adj_tensor, post_feat_tensor, action_tensor.unsqueeze(0), reward_tensor.unsqueeze(0));
+             // std::cout << "push time = " << get_time() - start_push << std::endl;
             
               if(RSMtrainer_->buffer.size_buffer() >= 2000) {
+                //double start_learn =  get_time();
                 RSMtrainer_->learn();
+                //std::cout << "learn time = " << get_time() - start_learn << std::endl;
               }
            
-              if(compaction_id_ % 10000 == 0) {
-                RSMtrainer_->saveCheckPoints(); 
-              }
+//              if(compaction_id_ % 10000 == 0) {
+//                RSMtrainer_->saveCheckPoints(); 
+//              }
             }
             
             RSMtrainer_->rewards_.emplace_back(Reward.at(0)); 
@@ -797,9 +803,10 @@ void LevelDB::check_compaction(std::size_t level) {
           
           int* max;
 
+         // double start_input =  get_time();
           prev_adj_tensor = set_submatrix(level,max);
           prev_feat_tensor = set_subfeature(level, *max);
-
+         // std::cout << "input matrix generation = " << get_time() - start_input << std::endl;
         /* DDPG code */
         /*
           if(params_.compaction_mode == LevelDBCompactionMode::kRSMTrain) 
@@ -807,9 +814,9 @@ void LevelDB::check_compaction(std::size_t level) {
           else
             RSMtrainer_->Action_DDPG = RSMtrainer_->act_ddpg(feat_matrix, adj_matrix, false);
          * */
-          
+       //   double start_act =  get_time();
           RSMtrainer_->Action_DQN = RSMtrainer_->act_dqn(feat_matrix, adj_matrix); 
-          
+         // std::cout << "input matrix generation = " << get_time() - start_act << std::endl;
           std::size_t selected = select_action(level);
           sstable_indices.back().push_back(selected); 
           set_input = true;

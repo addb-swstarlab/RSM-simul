@@ -97,13 +97,13 @@ void DQNTrainer::learn() {
   torch::Tensor expected_q_value = reward_tensors + gamma * max_q_prime;
           
   torch::Tensor loss = torch::mse_loss(current_q_value, expected_q_value.detach());
-  loss_.emplace_back(loss.to(torch::kCPU).item<float>());
+  //loss_.emplace_back(loss.to(torch::kCPU).item<float>());
   
   dqn_optimizer.zero_grad();
   loss.backward();
   dqn_optimizer.step();
   
-  if(frame_id % 1000 == 0) hard_copy(dqn_local, dqn_target);
+  if(frame_id % 500 == 0) hard_copy(dqn_local, dqn_target);
 }
 
 double DQNTrainer::epsilon_by_frame() {
