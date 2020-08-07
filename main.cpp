@@ -3,7 +3,7 @@
 #include "zipf.h"
 #include "leveldb.h"
 #include "policy_rl/Trainer.h"
-#include "policy_rl/DQNTrainer.h"
+#include "policy_rl/NDQNTrainer.h"
 #include <sys/time.h>
 
 enum class ActiveKeyMode {
@@ -289,15 +289,15 @@ void test(uint64_t num_unique_keys,
       }
       num_processed_requests += this_request_batch_size;
 
-      if (verbose) {
-        printf("request %lu/%lu processed\n", num_processed_requests,
-               num_requests);
-        store.print_status();
-        print_stats(stats,
-                    num_processed_requests * static_cast<uint64_t>(item_size));
-        printf("\n");
-        fflush(stdout);
-      }
+//      if (verbose) {
+//        printf("request %lu/%lu processed\n", num_processed_requests,
+//               num_requests);
+//        store.print_status();
+//        print_stats(stats,
+//                    num_processed_requests * static_cast<uint64_t>(item_size));
+//        printf("\n");
+//        fflush(stdout);
+//      }
     }
 
     printf("request %lu/%lu processed\n", num_processed_requests, num_requests);
@@ -365,10 +365,13 @@ int main(int argc, const char* argv[]) {
   if(compaction_mode == LevelDBCompactionMode::kRSMTrain) {
     /* reward file */
     FILE* fp_reward = fopen("/home/wonki/rsm-simul/reward_info.txt", "at");
-    //FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");   
+    FILE* fp_loss = fopen("/home/wonki/rsm-simul/loss_info.txt", "at");   
 
     /* n_features, n_hidden, n_output, action_size, victim_size, capacity */
-    RSMTrainer = new DQNTrainer(3, 512, 128, 5, 5, 5000);   
+//    RSMTrainer = new DQNTrainer(3, 512, 128, 5, 5, 5000); 
+    /* action_size, capacity */
+    RSMTrainer = new NDQNTrainer(2, 50000);   
+
     for (int i = 0; i < num_episodes; i++) {
       double sum = 0.0;
       test<LevelDB>(num_unique_keys, active_key_mode,
@@ -380,21 +383,24 @@ int main(int argc, const char* argv[]) {
         sum += RSMTrainer->rewards_[j];
       }
   
+      fprintf(fp_reward, " ==============Reward[episode : %d]============== \n", i);
       fprintf(fp_reward, "%lf\n", sum/(double)reward_size);
       RSMTrainer->rewards_.clear();
       
-//      fprintf(fp_loss, " ==============Loss[episode : %d]============== \n", i);
-//      for(uint k = 0; k < RSMTrainer->loss_.size(); k++) {
-//       fprintf(fp_loss, "%lf\n", RSMTrainer->loss_[k]);
-//      }
-//      RSMTrainer->loss_.clear();
+      fprintf(fp_loss, " ==============Loss[episode : %d]============== \n", i);
+      for(uint k = 0; k < RSMTrainer->loss_.size(); k++) {
+       fprintf(fp_loss, "%lf\n", RSMTrainer->loss_[k]);
+      }
+      RSMTrainer->loss_.clear();
     }
     
     fclose(fp_reward);
-//    fclose(fp_loss);
+    fclose(fp_loss);
+    RSMTrainer->saveCheckPoints();
     
   } else if (compaction_mode == LevelDBCompactionMode::kRSMEvaluate) {      
-    RSMTrainer = new DQNTrainer(3, 512, 64, 5, 5, 5000);   
+    //RSMTrainer = new DQNTrainer(3, 512, 64, 5, 5, 5000);   
+    RSMTrainer = new NDQNTrainer(2, 50000); 
     test<LevelDB>(num_unique_keys, active_key_mode,
                     dependency_mode, num_requests, theta, compaction_mode,
                     wb_size, enable_fsync, use_custom_sizes, dump_points, RSMTrainer);  

@@ -122,6 +122,7 @@ std::vector<float> DDPGTrainer::act_ddpg(std::vector<float> &feat_matrix, std::v
 void DDPGTrainer::learn() {
 
   /* batch size = 1, required to consider batch computation */
+  /*
   std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>> batch =
     buffer.sample_queue(batch_size);
 
@@ -172,6 +173,7 @@ void DDPGTrainer::learn() {
 
   soft_update(critic_local, critic_target);
   soft_update(actor_local, actor_target); 
+  */
 }
 
 void DDPGTrainer::soft_update(std::shared_ptr<torch::nn::Module> local, std::shared_ptr<torch::nn::Module> target) {

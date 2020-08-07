@@ -66,6 +66,8 @@ torch::Tensor GraphDQN::forward(torch::Tensor feature, torch::Tensor adj) {
 }
 
 void DQNTrainer::learn() {
+    
+  /*
   std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>> batch =
     buffer.sample_queue(batch_size);
 
@@ -85,15 +87,15 @@ void DQNTrainer::learn() {
     rewards.push_back(std::get<5>(i));
   }
   
-  /* State */
+
   torch::Tensor prev_adj_tensors = torch::cat(prev_adj_tensor, 0).to(device);
   torch::Tensor prev_feat_tensors = torch::cat(prev_feat_tensor, 0).to(device);
-  /* State Prime */
+ 
   torch::Tensor post_adj_tensors = torch::cat(post_adj_tensor, 0).to(device);
   torch::Tensor post_feat_tensors = torch::cat(post_feat_tensor, 0).to(device);
-  /* Action */
+
   torch::Tensor action_tensors = torch::cat(actions, 0).to(device);
-  /* Reward */
+
   torch::Tensor reward_tensors = torch::cat(rewards, 0).to(device);
 
   action_tensors = action_tensors.to(torch::kInt64);
@@ -109,7 +111,8 @@ void DQNTrainer::learn() {
   loss.backward();
   dqn_optimizer.step();
   
-  if(frame_id % 500 == 0) hard_copy(dqn_local, dqn_target);
+  if(frame_id % 200 == 0) hard_copy(dqn_local, dqn_target);
+  */
 }
 
 double DQNTrainer::epsilon_by_frame() {
@@ -121,9 +124,11 @@ int64_t DQNTrainer::act_dqn(std::vector<float> &feat_matrix, std::vector<float> 
   frame_id++;
   auto r = ((double) rand() / (RAND_MAX));
   
+//  if(frame_id % 1000 == 0)
 //  std::cout << std::setprecision(16) << "FRAME : " << frame_id - 1
 //          << " EPSILON : " << epsilon << " r : " << r << std::endl;
-  if (r <= epsilon){
+  if (r <= epsilon) {
+//    if(frame_id % 1000 == 0) std::cout << "RANDOM : " << (int64_t)(rand() % victim_size_) << std::endl;
     return ((int64_t)(rand() % victim_size_));    
   }
     
@@ -135,6 +140,7 @@ int64_t DQNTrainer::act_dqn(std::vector<float> &feat_matrix, std::vector<float> 
   torch::Tensor q_value = dqn_local->forward(feat_tensor, adj_tensor);
   torch::Tensor action = std::get<1>(q_value.max(1));
 
+//  if(frame_id % 1000 == 0) std::cout << "DQN ACTION : " << action[0].to(torch::kCPU).item<int64_t>() << std::endl;
   return action[0].to(torch::kCPU).item<int64_t>();  
 }
 

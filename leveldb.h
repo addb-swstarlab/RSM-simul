@@ -150,18 +150,8 @@ class LevelDB {
   // Merges SSTables and emits SSTable in the specified level.  Items at a later
   // position take precedence.
   void merge_sstables(const levels_t& source_sstables, std::size_t level);
-
-  void set_initial();
   
-  void up_propagate(std::size_t level);
-  
-  void down_propagate(std::size_t level);
-
-  torch::Tensor set_submatrix(std::size_t level, int* max_size);
-  
-  torch::Tensor set_subfeature(std::size_t level, std::size_t maximum_size);
-  
-  std::size_t select_action(std::size_t level);
+  torch::Tensor set_state();
   
   // Check if we need new compaction.
   void check_compaction(std::size_t level);
@@ -221,29 +211,17 @@ class LevelDB {
   std::vector<double> level_overlapping_sstables_false_;
   std::vector<uint64_t> level_sweeps_;
   uint64_t next_version_;
+  
+  /* Wonki implementation */
+  int64_t level_num;
+  int64_t division_factor;
+  std::vector<float> state_matrix;
   uint64_t compaction_id_;
   Trainer* RSMtrainer_;
   uint64_t read_bytes_non_output_;
   uint64_t write_bytes_;
-  int64_t level_size = 4;
-  int64_t channel_size = 3;
- 
-  std::vector<uint64_t> compaction_number;
-  std::vector<float> adj_matrix;
-  std::vector<float> feat_matrix;
-  uint64_t num_victim = 5;
-  bool set_input = false;
-  torch::Tensor prev_adj_tensor;
-  torch::Tensor prev_feat_tensor;
   
-  struct Fsize {
-    std::size_t comp; // compare
-    std::size_t curr_idx; // file idx
-    std::size_t bot_start_idx;
-    std::size_t bot_end_idx;
-    std::size_t up_start_idx;
-    std::size_t up_end_idx;
-  };
-  std::vector<std::vector<Fsize>> level_idx;
-  
+  torch::Tensor prev_state;
+  torch::Tensor new_state;
+  uint64_t compact_or_not;
 };

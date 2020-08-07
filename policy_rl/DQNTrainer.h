@@ -48,7 +48,7 @@ class GraphDQN : public torch::nn::Module {
 
 class DQNTrainer : public Trainer {
   public:
-    double epsilon_start = 0.8;
+    double epsilon_start = 0.9;
     double epsilon_final = 0.01;
     int64_t epsilon_decay = 30000;
     int64_t victim_size_;

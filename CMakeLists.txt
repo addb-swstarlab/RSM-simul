@@ -6,6 +6,7 @@ set(PROJECT_SOURCE_DIR /home/wonki/rsm-simul/)
 set(SRCS 
     leveldb.cpp
     util.cpp
+    policy_rl/NDQNTrainer.cc
     policy_rl/DDPGTrainer.cc
     policy_rl/DQNTrainer.cc
     policy_rl/ExperienceReplay.cc)
